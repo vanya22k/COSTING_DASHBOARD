@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3PL Cost Dashboard</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --panel-2:#f1f4f9; --border:#dde3ee;
+    --text:#1a2233; --muted:#68728a; --accent:#3d6fd9; --accent-2:#7c5cff;
+    --good:#1f9d5c; --warn:#b8790f; --bad:#c9372c;
+    --radius:12px; --shadow:0 4px 16px rgba(20,30,60,0.08);
+    font-size:15px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg);
+    color:var(--text); font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    padding:24px 28px 60px;
+  }
+  h1{font-size:22px; margin:0 0 2px; letter-spacing:.3px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .topbar{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:20px;}
+
+  .filters{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
+  select, input[type=date], input[type=number]{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:8px; font-size:13px; min-width:110px;
+  }
+  select:focus, input:focus{outline:none; border-color:var(--accent);}
+  button{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border:none;
+    padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+    box-shadow:0 4px 14px rgba(79,140,255,0.35); transition:transform .1s ease, opacity .15s ease;
+  }
+  button:hover{opacity:.92;}
+  button:active{transform:scale(.97);}
+  button.secondary{background:var(--panel-2); box-shadow:none; border:1px solid var(--border); color:var(--text);}
+  button.danger{background:var(--panel-2); box-shadow:none; border:1px solid rgba(230,88,76,0.4); color:var(--bad);}
+  button.icon-btn{padding:4px 9px; font-size:12px; border-radius:6px;}
+
+  .seg{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .seg button{
+    background:var(--panel-2); box-shadow:none; border:none; border-radius:0; color:var(--muted);
+    padding:7px 14px; font-weight:600; font-size:12px;
+  }
+  .seg button + button{border-left:1px solid var(--border);}
+  .seg button.active{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff;}
+
+  #status{font-size:12px; color:var(--muted); margin-bottom:14px; min-height:16px;}
+  #status.error{color:var(--bad);}
+  #status.loading{color:var(--warn);}
+  #status.cached{color:var(--good);}
+
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:24px;}
+  .kpi-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; box-shadow:var(--shadow);
+  }
+  .kpi-card .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px;}
+  .kpi-card .value{font-size:22px; font-weight:700;}
+  .kpi-card.highlight{border-color:var(--accent); background:linear-gradient(135deg,rgba(79,140,255,0.12),rgba(124,92,255,0.08));}
+
+  .panels{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
+  @media(max-width:900px){.panels{grid-template-columns:1fr;}}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow);
+  }
+  .panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .panel h2{font-size:14px; margin:0; color:var(--text); display:flex; align-items:center; gap:8px;}
+  .panel h2::before{content:''; width:4px; height:14px; background:var(--accent); border-radius:2px; display:inline-block;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th, td{text-align:right; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  th:first-child, td:first-child{text-align:left;}
+  th{color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
+  tbody tr:hover{background:rgba(20,30,60,0.03);}
+  .empty-row td{text-align:center; color:var(--muted); padding:20px;}
+
+  .full{grid-column:1 / -1;}
+
+  canvas{width:100%; display:block;}
+  .chart-line canvas{height:200px;}
+  .chart-bar canvas{height:auto;}
+
+  .sim-grid{display:grid; grid-template-columns:repeat(5,1fr) auto; gap:10px; align-items:flex-end;}
+  @media(max-width:900px){.sim-grid{grid-template-columns:repeat(2,1fr);}}
+  .sim-hint{grid-column:1/-1; font-size:12px; color:var(--warn); background:rgba(230,168,60,0.1); border:1px solid rgba(230,168,60,0.3); border-radius:8px; padding:8px 12px; display:none;}
+  .sim-hint.show{display:block;}
+  .sim-table-wrap{margin-top:20px;}
+  #tbl-sim td.sim-source{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); text-align:left;}
+
+  .footer-note{color:var(--muted); font-size:11px; margin-top:30px; text-align:center;}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <h1>3PL COST DASHBOARD</h1>
+      <div class="subtitle">Forward + Reverse logistics cost across partners</div>
+    </div>
+
+    <div class="filters">
+      <div class="field">
+        <label>Partner</label>
+        <select id="f-partner"><option value="All">All</option></select>
+      </div>
+      <div class="field">
+        <label>Zone</label>
+        <select id="f-zone"><option value="All">All</option></select>
+      </div>
+      <div class="field">
+        <label>Shipment Type</label>
+        <select id="f-type">
+          <option value="Combined">Overall</option>
+          <option value="Forward">Forward</option>
+          <option value="Reverse">Reverse</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Payment Mode</label>
+        <select id="f-payment">
+          <option value="All">All</option>
+          <option value="COD">COD</option>
+          <option value="Prepaid">Prepaid</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>From</label>
+        <input type="date" id="f-from">
+      </div>
+      <div class="field">
+        <label>To</label>
+        <input type="date" id="f-to">
+      </div>
+      <button id="btn-reset" class="secondary">Reset</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Partner-wise <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(sorted by lowest CPOL first)</span></h2>
+      <table id="tbl-partner">
+        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Zone-wise</h2>
+      <table id="tbl-zone">
+        <thead><tr><th>Zone</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel full">
+      <h2>Partner &times; Zone (Total Cost)</h2>
+      <table id="tbl-matrix"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <div class="panel full">
+      <div class="panel-head">
+        <h2 id="trend-title">Total Cost &amp; Order Volume Trend</h2>
+        <div class="seg" id="granularity-seg">
+          <button data-gran="day" class="active">Daily</button>
+          <button data-gran="week">Weekly</button>
+          <button data-gran="month">Monthly</button>
+        </div>
+      </div>
+      <div class="panels" style="margin-bottom:0;">
+        <div class="chart-line">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">Total Cost Trend</div>
+          <canvas id="trend-cost-canvas" width="1100" height="200"></canvas>
+        </div>
+        <div class="chart-line">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">Order Volume Trend</div>
+          <canvas id="trend-orders-canvas" width="1100" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Partner Cost Comparison</h2>
+      <div id="partner-chart-range" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
+      <div class="chart-bar"><canvas id="chart-partner-cost"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>CPOL by Partner <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(greenest bar = best allocation target)</span></h2>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Cost per delivered order, sorted lowest first — lowest bar is the cheapest partner to route more orders to right now</div>
+      <div class="chart-bar"><canvas id="chart-partner-cpol"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Zone Cost Distribution</h2>
+      <div id="zone-chart-range" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
+      <div class="chart-bar"><canvas id="chart-zone-dist"></canvas></div>
+    </div>
+
+    <div class="panel full">
+      <div class="panel-head">
+        <h2>Cost Simulator</h2>
+        <div class="field" style="align-items:flex-end;">
+          <label>Shipment Type</label>
+          <div class="seg" id="sim-type-seg">
+            <button data-simtype="Forward" class="active">Forward</button>
+            <button data-simtype="Reverse">Reverse</button>
+            <button data-simtype="All">All</button>
+          </div>
+        </div>
+      </div>
+      <div id="sim-type-note" style="font-size:11px; color:var(--muted); margin-bottom:14px;"></div>
+
+      <div class="sim-grid" id="sim-input-grid" style="grid-template-columns:repeat(2,1fr) auto;">
+        <div class="field">
+          <label>Order Volume</label>
+          <input type="number" id="s-volume" placeholder="e.g. 220000" min="0" value="100000">
+        </div>
+        <div class="field">
+          <label>Zone</label>
+          <select id="s-zone">
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option>
+          </select>
+        </div>
+        <button id="btn-refresh-sim">Update</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:8px;">Zone applies wherever a partner's rate depends on it (see each row's Source) &mdash; partners that price purely by volume (e.g. Amazon above 1L, Xpressbees above 1.5L) ignore it automatically.</div>
+
+      <div class="sim-table-wrap">
+        <div class="panel-head">
+          <h2 style="font-size:13px;">All partners <span style="color:var(--good); font-weight:600;">(greenest row = cheapest right now)</span></h2>
+          <button id="btn-reset-overrides" class="secondary">Reset manual edits</button>
+        </div>
+        <table id="tbl-sim">
+          <thead><tr><th>Partner</th><th id="sim-th-fwd">Fwd Cost/Order</th><th id="sim-th-rev">Rev Cost/Order</th><th>Est. Cost</th><th>Source</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cost/Order values are editable &mdash; click a cell to override the computed rate manually (e.g. for negotiated pricing); Est. Cost recalculates immediately.</div>
+        <div class="kpi-grid" id="sim-summary" style="margin-top:16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">Data source: Forward / Reverse / Rate Card sheets, computed live via Apps Script.</div>
+
+<script>
+/*************************************************************
+ * CONFIG — point this at your Apps Script Web App /exec URL.
+ *************************************************************/
+const API_URL = 'https://script.google.com/macros/s/AKfycbwad9n9D32tvBpT7-irpmWRExl2faRyBVYEYxWDyc8Lj6J3fWyYmRIBGdp0C1Vf-Dxbbg/exec';
+
+const CUR = '₹';
+const BAR_COLORS = ['#4f8cff','#7c5cff','#33c07a','#e6a83c','#e6584c','#3ec9d6','#c76bd6','#8fae4f'];
+
+let partnerPricingType = {};
+let currentGranularity = 'day';
+
+// Session-only cache: same filter combo returns instantly without hitting
+// the Apps Script API again. Cleared automatically on page reload (this is
+// an in-memory Map, not localStorage) so stale data never survives a fresh
+// visit, but repeated filter toggling within a session is instant.
+const dashboardCache = new Map();
+
+function fmtMoney(n){
+  n = Number(n) || 0;
+  return CUR + n.toLocaleString('en-IN', {maximumFractionDigits:0});
+}
+function fmtNum(n){
+  return (Number(n)||0).toLocaleString('en-IN');
+}
+
+function setStatus(msg, cls){
+  const el = document.getElementById('status');
+  el.textContent = msg || '';
+  el.className = cls || '';
+}
+
+async function apiGet(action, params){
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  Object.keys(params || {}).forEach(k => {
+    if (params[k] !== undefined && params[k] !== null && params[k] !== '') {
+      url.searchParams.set(k, params[k]);
+    }
+  });
+  const res = await fetch(url.toString(), { method: 'GET' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+/* ---------- Filters / dropdowns ---------- */
+
+async function loadFilters(){
+  const f = await apiGet('filters', {});
+  const partnerSel = document.getElementById('f-partner');
+  const zoneSel = document.getElementById('f-zone');
+
+  (f.partners || []).forEach(p => {
+    partnerSel.appendChild(new Option(p, p));
+  });
+  (f.zones || []).forEach(z => {
+    zoneSel.appendChild(new Option(z, z));
+  });
+
+  partnerPricingType = f.partnerPricingType || {};
+
+  if (f.dateMin) document.getElementById('f-from').value = f.dateMin.slice(0,10);
+  if (f.dateMax) document.getElementById('f-to').value = f.dateMax.slice(0,10);
+}
+
+function currentFilters(){
+  return {
+    partner: document.getElementById('f-partner').value,
+    zone: document.getElementById('f-zone').value,
+    shipmentType: document.getElementById('f-type').value,
+    paymentMode: document.getElementById('f-payment').value,
+    dateFrom: document.getElementById('f-from').value,
+    dateTo: document.getElementById('f-to').value,
+    granularity: currentGranularity
+  };
+}
+
+/* ---------- KPI cards ---------- */
+
+const KPI_DEFS = [
+  ['totalOrders','Total Orders', fmtNum],
+  ['forwardOrders','Forward Orders', fmtNum],
+  ['reverseOrders','Reverse Orders', fmtNum],
+  ['forwardCost','Forward Cost', fmtMoney],
+  ['reverseCost','Reverse Cost', fmtMoney],
+  ['totalCost','Total Cost', fmtMoney, true],
+  ['cpol','CPOL', fmtMoney, true],
+  ['returnPct','Return %', v => (Number(v)||0).toFixed(2) + '%']
+];
+
+function renderKpis(kpis){
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = '';
+  KPI_DEFS.forEach(([key, label, fmt, highlight]) => {
+    const card = document.createElement('div');
+    card.className = 'kpi-card' + (highlight ? ' highlight' : '');
+    card.innerHTML = '<div class="label">'+label+'</div><div class="value">'+fmt(kpis[key])+'</div>';
+    grid.appendChild(card);
+  });
+}
+
+/* ---------- Tables ---------- */
+
+function renderRowsTable(tableId, rows, highlightBestRow){
+  const tbody = document.querySelector('#'+tableId+' tbody');
+  tbody.innerHTML = '';
+  if (!rows || !rows.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No data for this filter selection</td></tr>';
+    return;
+  }
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    // r[5] is CPOL; highlight only the first row, and only if it has a
+    // genuinely valid CPOL (>0) — matches the backend's sort rule that
+    // sinks invalid (netOrders<=0) rows to the bottom.
+    const isBest = highlightBestRow && i === 0 && r[5] > 0;
+    if (isBest) {
+      tr.style.background = 'rgba(31,157,92,0.10)';
+      tr.style.borderLeft = '3px solid var(--good)';
+    }
+    tr.innerHTML =
+      '<td>'+(isBest ? '🏆 ' : '')+r[0]+'</td>' +
+      '<td>'+fmtNum(r[1])+'</td>' +
+      '<td>'+fmtMoney(r[2])+'</td>' +
+      '<td>'+fmtMoney(r[3])+'</td>' +
+      '<td>'+fmtMoney(r[4])+'</td>' +
+      '<td>'+fmtMoney(r[5])+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMatrix(partnerXZone){
+  const thead = document.querySelector('#tbl-matrix thead');
+  const tbody = document.querySelector('#tbl-matrix tbody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  const header = (partnerXZone && partnerXZone.header) || [];
+  const rows = (partnerXZone && partnerXZone.rows) || [];
+
+  if (!header.length){
+    tbody.innerHTML = '<tr class="empty-row"><td>No data</td></tr>';
+    return;
+  }
+  const trh = document.createElement('tr');
+  header.forEach(h => trh.innerHTML += '<th>'+h+'</th>');
+  thead.appendChild(trh);
+
+  if (!rows.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="'+header.length+'">No data</td></tr>';
+    return;
+  }
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    r.forEach((v, i) => {
+      tr.innerHTML += '<td>' + (i === 0 ? v : fmtMoney(v)) + '</td>';
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+/* ---------- Trend line charts ---------- */
+
+function renderTrendChart(canvasId, trend, valueIndex, color, fmt){
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, PAD = 40;
+  ctx.clearRect(0,0,W,H);
+
+  if (!trend || !trend.length){
+    ctx.fillStyle = '#68728a';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('No data for this filter selection', PAD, H/2);
+    return;
+  }
+
+  const vals = trend.map(r => r[valueIndex]);
+  const maxVal = Math.max.apply(null, vals) || 1;
+  const minVal = 0;
+
+  ctx.strokeStyle = '#dde3ee';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, H-PAD); ctx.lineTo(W-10, H-PAD);
+  ctx.moveTo(PAD, 10); ctx.lineTo(PAD, H-PAD);
+  ctx.stroke();
+
+  const stepX = (W - PAD - 20) / Math.max(trend.length - 1, 1);
+  const scaleY = (H - PAD - 20) / (maxVal - minVal || 1);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  trend.forEach((r, i) => {
+    const x = PAD + i * stepX;
+    const y = (H - PAD) - (r[valueIndex] - minVal) * scaleY;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  ctx.lineTo(PAD + (trend.length-1)*stepX, H-PAD);
+  ctx.lineTo(PAD, H-PAD);
+  ctx.closePath();
+  ctx.fillStyle = color + '20';
+  ctx.fill();
+
+  ctx.fillStyle = '#68728a';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(fmt(maxVal), 4, 16);
+  ctx.fillText(fmt(minVal), 4, H-PAD+4);
+
+  const labelIdx = [0, Math.floor(trend.length/2), trend.length-1];
+  labelIdx.forEach(i => {
+    if (trend[i]) {
+      const x = PAD + i * stepX;
+      ctx.fillText(trend[i][0], Math.max(x-25,PAD), H-PAD+18);
+    }
+  });
+}
+
+/* ---------- Bar charts ---------- */
+
+function drawBarChart(canvasId, items, fmt, colorFn){
+  const canvas = document.getElementById(canvasId);
+  const rowH = 34;
+  const H = Math.max(items.length * rowH + 20, 60);
+  canvas.height = H;
+  canvas.width = canvas.clientWidth || 500;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  ctx.clearRect(0,0,W,H);
+
+  if (!items || !items.length){
+    ctx.fillStyle = '#68728a';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('No data for this filter selection', 10, H/2);
+    return;
+  }
+
+  const labelW = 140;
+  const valueW = 90;
+  const barAreaW = Math.max(W - labelW - valueW - 10, 40);
+  const maxVal = Math.max.apply(null, items.map(i => i[1])) || 1;
+
+  ctx.font = '12px sans-serif';
+  items.forEach((item, i) => {
+    const y = i * rowH + 10;
+    const barW = Math.max((item[1] / maxVal) * barAreaW, 2);
+    const color = colorFn ? colorFn(item, i) : BAR_COLORS[i % BAR_COLORS.length];
+
+    ctx.fillStyle = '#1a2233';
+    ctx.textAlign = 'left';
+    const label = item[0].length > 20 ? item[0].slice(0,18) + '…' : item[0];
+    ctx.fillText(label, 0, y + 16);
+
+    ctx.fillStyle = color;
+    roundRect(ctx, labelW, y + 4, barW, 16, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#68728a';
+    ctx.textAlign = 'left';
+    ctx.fillText(fmt(item[1]), labelW + barAreaW + 8, y + 16);
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  r = Math.min(r, h/2, w/2 > 0 ? w/2 : r);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function renderPartnerComparison(byPartner){
+  const items = (byPartner || [])
+    .map(r => [r[0], r[4]]) // r[4] = Total Cost
+    .sort((a,b) => b[1]-a[1]);
+  drawBarChart('chart-partner-cost', items, fmtMoney);
+}
+
+function renderPartnerCpolComparison(byPartner){
+  // byPartner already arrives sorted lowest-CPOL-first from the backend
+  // (toRows(sortByCpol=true)); only keep partners with a valid CPOL
+  // (netOrders > 0), same rule the backend uses to sink invalid rows.
+  const items = (byPartner || [])
+    .filter(r => r[5] > 0)
+    .map(r => [r[0], r[5]]); // r[5] = CPOL
+  drawBarChart('chart-partner-cpol', items, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[(i) % BAR_COLORS.length]);
+}
+
+function renderZoneDistribution(byZone){
+  const items = (byZone || [])
+    .map(r => [r[0], r[4]]) // r[4] = Total Cost
+    .sort((a,b) => b[1]-a[1]);
+  drawBarChart('chart-zone-dist', items, fmtMoney);
+}
+
+/* ---------- Simulator: global Volume+Zone+ShipmentType -> all-partner table ---------- */
+
+let currentSimType = 'Forward';
+let simResults = [];        // raw results from apiSimulateAll: [{partner, forwardRate, forwardCost, forwardSource, reverseRate, reverseCost, reverseSource}]
+let simOverrides = {};      // { 'PartnerName|fwd'|'rev': manualRateNumber }
+
+const SIM_TYPE_NOTES = {
+  Forward: 'Forward shipping cost only.',
+  Reverse: 'RTO cost only (all Reverse orders are treated as RTO — see dashboard notes).',
+  All: 'Both Forward and RTO cost shown, and summed into Est. Cost — i.e. "what if this entire volume also came back". Not the same as the dashboard\'s Combined view, which sums real independent Forward/Reverse counts.'
+};
+
+function updateSimTypeNote(){
+  document.getElementById('sim-type-note').textContent = SIM_TYPE_NOTES[currentSimType] || '';
+  const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
+  const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
+  document.getElementById('sim-th-fwd').style.display = showFwd ? '' : 'none';
+  document.getElementById('sim-th-rev').style.display = showRev ? '' : 'none';
+}
+
+/* ---------- Dashboard load (with session cache) ---------- */
+
+function renderAllDashboardData(data){
+  renderKpis(data.kpis || {});
+  renderRowsTable('tbl-partner', data.byPartner, true);
+  renderRowsTable('tbl-zone', data.byZone);
+  renderMatrix(data.partnerXZone);
+  renderTrendChart('trend-cost-canvas', data.trend, 2, '#4f8cff', fmtMoney);
+  renderTrendChart('trend-orders-canvas', data.trend, 1, '#33c07a', fmtNum);
+  renderPartnerComparison(data.byPartner);
+  renderPartnerCpolComparison(data.byPartner);
+  renderZoneDistribution(data.byZone);
+  const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
+  document.getElementById('trend-title').textContent = 'Total Cost & Order Volume Trend (' + granLabel + ')';
+
+  const from = document.getElementById('f-from').value;
+  const to = document.getElementById('f-to').value;
+  const rangeLabel = (from && to) ? ('Totals for ' + from + ' to ' + to) : 'Totals for full selected range';
+  document.getElementById('partner-chart-range').textContent = rangeLabel;
+  document.getElementById('zone-chart-range').textContent = rangeLabel;
+}
+
+async function loadDashboard(){
+  const filters = currentFilters();
+  const cacheKey = JSON.stringify(filters);
+
+  if (dashboardCache.has(cacheKey)) {
+    renderAllDashboardData(dashboardCache.get(cacheKey));
+    setStatus('Loaded from cache · ' + new Date().toLocaleTimeString(), 'cached');
+    return;
+  }
+
+  setStatus('Loading…', 'loading');
+  try{
+    const data = await apiGet('dashboard', filters);
+    dashboardCache.set(cacheKey, data);
+    renderAllDashboardData(data);
+    setStatus('Updated ' + new Date().toLocaleTimeString());
+  } catch(err){
+    setStatus('Failed to load dashboard: ' + err.message, 'error');
+  }
+}
+
+/* ---------- Cost Simulator (all partners, live-updating) ---------- */
+
+function effectiveRate(partner, kind, computedRate){
+  // kind: 'fwd' | 'rev'. Manual override (if the user edited the cell)
+  // takes priority over the backend-computed rate.
+  const key = partner + '|' + kind;
+  return simOverrides.hasOwnProperty(key) ? simOverrides[key] : computedRate;
+}
+
+function rowEstCost(r, volume){
+  const fwdRate = effectiveRate(r.partner, 'fwd', r.forwardRate);
+  const revRate = effectiveRate(r.partner, 'rev', r.reverseRate);
+  if (currentSimType === 'Forward') return fwdRate * volume;
+  if (currentSimType === 'Reverse') return revRate * volume;
+  return (fwdRate + revRate) * volume; // All
+}
+
+function renderSimTable(){
+  const tbody = document.querySelector('#tbl-sim tbody');
+  tbody.innerHTML = '';
+  const volume = Number(document.getElementById('s-volume').value) || 0;
+
+  if (!simResults.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Enter a volume and click Update</td></tr>';
+    renderSimSummary(volume);
+    return;
+  }
+
+  const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
+  const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
+
+  // Sort ascending by whatever Est. Cost/order this shipment type implies,
+  // so row 0 is always the cheapest option — greenest highlight.
+  const sorted = simResults.slice().sort((a,b) => {
+    const aRate = (showFwd ? effectiveRate(a.partner,'fwd',a.forwardRate) : 0) + (showRev ? effectiveRate(a.partner,'rev',a.reverseRate) : 0);
+    const bRate = (showFwd ? effectiveRate(b.partner,'fwd',b.forwardRate) : 0) + (showRev ? effectiveRate(b.partner,'rev',b.reverseRate) : 0);
+    return aRate - bRate;
+  });
+
+  sorted.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) { tr.style.background = 'rgba(31,157,92,0.10)'; tr.style.borderLeft = '3px solid var(--good)'; }
+
+    const fwdRate = effectiveRate(r.partner, 'fwd', r.forwardRate);
+    const revRate = effectiveRate(r.partner, 'rev', r.reverseRate);
+    const est = rowEstCost(r, volume);
+    const sourceText = showFwd && showRev ? ('Fwd: ' + r.forwardSource + ' | RTO: ' + r.reverseSource)
+      : showFwd ? r.forwardSource : r.reverseSource;
+
+    tr.innerHTML =
+      '<td>'+(i===0?'🏆 ':'')+r.partner+'</td>' +
+      '<td'+(showFwd?'':' style="display:none;"')+'><input class="sim-rate-input" data-partner="'+r.partner+'" data-kind="fwd" type="number" value="'+fwdRate+'" step="0.01"></td>' +
+      '<td'+(showRev?'':' style="display:none;"')+'><input class="sim-rate-input" data-partner="'+r.partner+'" data-kind="rev" type="number" value="'+revRate+'" step="0.01"></td>' +
+      '<td>'+fmtMoney(est)+'</td>' +
+      '<td class="sim-source" title="'+sourceText.replace(/"/g,'&quot;')+'">'+sourceText+'</td>';
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.sim-rate-input').forEach(input => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.partner + '|' + input.dataset.kind;
+      const val = Number(input.value);
+      if (!isNaN(val)) simOverrides[key] = val;
+      renderSimTable();
+    });
+  });
+
+  renderSimSummary(volume);
+}
+
+function renderSimSummary(volume){
+  const grid = document.getElementById('sim-summary');
+  if (!simResults.length){
+    grid.innerHTML = '';
+    return;
+  }
+  let cheapest = null, cheapestRate = Infinity;
+  simResults.forEach(r => {
+    const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
+    const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
+    const rate = (showFwd ? effectiveRate(r.partner,'fwd',r.forwardRate) : 0) + (showRev ? effectiveRate(r.partner,'rev',r.reverseRate) : 0);
+    if (rate < cheapestRate) { cheapestRate = rate; cheapest = r.partner; }
+  });
+  grid.innerHTML =
+    '<div class="kpi-card"><div class="label">Order Volume</div><div class="value">'+fmtNum(volume)+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Cheapest Partner</div><div class="value">'+(cheapest||'-')+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Its Cost/Order</div><div class="value">'+fmtMoney(cheapestRate)+'</div></div>';
+}
+
+async function refreshSimulator(){
+  const zone = document.getElementById('s-zone').value;
+  const volume = document.getElementById('s-volume').value;
+  if (!volume){
+    setStatus('Simulator: enter a volume', 'error');
+    return;
+  }
+  setStatus('Simulating…', 'loading');
+  try{
+    const data = await apiGet('simulateAll', { zone, volume });
+    simResults = data.results || [];
+    renderSimTable();
+    setStatus('Simulator updated');
+  } catch(err){
+    setStatus('Simulation failed: ' + err.message, 'error');
+  }
+}
+
+/* ---------- Wire up: auto-apply filters, no Apply button ---------- */
+
+['f-partner','f-zone','f-type','f-payment'].forEach(id => {
+  document.getElementById(id).addEventListener('change', loadDashboard);
+});
+['f-from','f-to'].forEach(id => {
+  document.getElementById(id).addEventListener('change', loadDashboard);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  document.getElementById('f-partner').value = 'All';
+  document.getElementById('f-zone').value = 'All';
+  document.getElementById('f-type').value = 'Combined';
+  document.getElementById('f-payment').value = 'All';
+  setGranularity('day');
+  loadDashboard();
+});
+
+document.getElementById('btn-refresh-sim').addEventListener('click', refreshSimulator);
+document.getElementById('btn-reset-overrides').addEventListener('click', () => {
+  simOverrides = {};
+  renderSimTable();
+});
+
+document.querySelectorAll('#sim-type-seg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentSimType = btn.dataset.simtype;
+    document.querySelectorAll('#sim-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    updateSimTypeNote();
+    renderSimTable();
+  });
+});
+
+function setGranularity(g){
+  currentGranularity = g;
+  document.querySelectorAll('#granularity-seg button').forEach(b => {
+    b.classList.toggle('active', b.dataset.gran === g);
+  });
+}
+document.querySelectorAll('#granularity-seg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setGranularity(btn.dataset.gran);
+    loadDashboard();
+  });
+});
+
+window.addEventListener('resize', () => {
+  const partnerTrs = Array.from(document.querySelectorAll('#tbl-partner tbody tr')).filter(tr => !tr.classList.contains('empty-row'));
+  const partnerRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[4].textContent.replace(/[^\d.-]/g,''))]);
+  const partnerCpolRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[5].textContent.replace(/[^\d.-]/g,''))]).filter(r => r[1] > 0);
+  const zoneRows = Array.from(document.querySelectorAll('#tbl-zone tbody tr'))
+    .filter(tr => !tr.classList.contains('empty-row'))
+    .map(tr => [tr.children[0].textContent, Number(tr.children[4].textContent.replace(/[^\d.-]/g,''))]);
+  if (partnerRows.length) drawBarChart('chart-partner-cost', partnerRows.sort((a,b)=>b[1]-a[1]), fmtMoney);
+  if (partnerCpolRows.length) drawBarChart('chart-partner-cpol', partnerCpolRows, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[i % BAR_COLORS.length]);
+  if (zoneRows.length) drawBarChart('chart-zone-dist', zoneRows.sort((a,b)=>b[1]-a[1]), fmtMoney);
+});
+
+(async function init(){
+  setStatus('Loading filters…', 'loading');
+  updateSimTypeNote();
+  try{
+    await loadFilters();
+    await loadDashboard();
+    await refreshSimulator();
+  } catch(err){
+    setStatus('Could not reach the Apps Script API. Check that it is deployed with "Anyone" access, and that API_URL in this file matches your /exec URL. (' + err.message + ')', 'error');
+  }
+})();
+</script>
+</body>
+</html>
