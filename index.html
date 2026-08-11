@@ -87,12 +87,16 @@
   .chart-line canvas{height:200px;}
   .chart-bar canvas{height:auto;}
 
-  .sim-grid{display:grid; grid-template-columns:repeat(5,1fr) auto; gap:10px; align-items:flex-end;}
+  .sim-grid{display:grid; grid-template-columns:repeat(3,1fr) auto; gap:10px; align-items:flex-end;}
   @media(max-width:900px){.sim-grid{grid-template-columns:repeat(2,1fr);}}
-  .sim-hint{grid-column:1/-1; font-size:12px; color:var(--warn); background:rgba(230,168,60,0.1); border:1px solid rgba(230,168,60,0.3); border-radius:8px; padding:8px 12px; display:none;}
-  .sim-hint.show{display:block;}
   .sim-table-wrap{margin-top:20px;}
   #tbl-sim td.sim-source{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); text-align:left;}
+  .sim-rate-input{width:100px; text-align:right;}
+  .badge-pill{
+    display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 7px; border-radius:999px; background:rgba(79,140,255,0.12); color:var(--accent); margin-left:6px;
+  }
+  .partner-cell .sub{display:block; font-size:11px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; margin-top:2px;}
 
   .footer-note{color:var(--muted); font-size:11px; margin-top:30px; text-align:center;}
 </style>
@@ -169,7 +173,7 @@
 
     <div class="panel full">
       <div class="panel-head">
-        <h2 id="trend-title">Total Cost &amp; Order Volume Trend</h2>
+        <h2 id="trend-title">CPOL &amp; Order Volume Trend</h2>
         <div class="seg" id="granularity-seg">
           <button data-gran="day" class="active">Daily</button>
           <button data-gran="week">Weekly</button>
@@ -178,8 +182,8 @@
       </div>
       <div class="panels" style="margin-bottom:0;">
         <div class="chart-line">
-          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">Total Cost Trend</div>
-          <canvas id="trend-cost-canvas" width="1100" height="200"></canvas>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">CPOL Trend</div>
+          <canvas id="trend-cpol-canvas" width="1100" height="200"></canvas>
         </div>
         <div class="chart-line">
           <div style="font-size:11px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">Order Volume Trend</div>
@@ -198,10 +202,11 @@
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Cost per delivered order, sorted lowest first — lowest bar is the cheapest partner to route more orders to right now</div>
       <div class="chart-bar"><canvas id="chart-partner-cpol"></canvas></div>
     </div>
-    <div class="panel">
-      <h2>Zone Cost Distribution</h2>
-      <div id="zone-chart-range" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
-      <div class="chart-bar"><canvas id="chart-zone-dist"></canvas></div>
+    <div class="panel full">
+      <h2>Total Cost Share by Partner</h2>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">% of overall spend each partner accounts for</div>
+      <canvas id="chart-partner-pie" width="400" height="260" style="max-height:260px;"></canvas>
+      <div id="pie-legend" style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:12px;"></div>
     </div>
 
     <div class="panel full">
@@ -218,32 +223,31 @@
       </div>
       <div id="sim-type-note" style="font-size:11px; color:var(--muted); margin-bottom:14px;"></div>
 
-      <div class="sim-grid" id="sim-input-grid" style="grid-template-columns:repeat(2,1fr) auto;">
+      <div class="sim-grid" id="sim-input-grid">
+        <div class="field">
+          <label>Delivery Partner</label>
+          <select id="s-partner"></select>
+        </div>
         <div class="field">
           <label>Order Volume</label>
-          <input type="number" id="s-volume" placeholder="e.g. 220000" min="0" value="100000">
+          <input type="number" id="s-volume" placeholder="e.g. 220000" min="0">
         </div>
-        <div class="field">
-          <label>Zone</label>
-          <select id="s-zone">
-            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
-            <option value="D">D</option><option value="E">E</option>
-          </select>
+        <div class="field" style="justify-content:flex-end;">
+          <div style="font-size:11px; color:var(--muted);">Zone is resolved automatically for zone-priced partners (Shadowfax, Bluedart) based on their historical zone mix — nothing to select here.</div>
         </div>
-        <button id="btn-refresh-sim">Update</button>
+        <button id="btn-add-sim">Add</button>
       </div>
-      <div style="font-size:11px; color:var(--muted); margin-top:8px;">Zone applies wherever a partner's rate depends on it (see each row's Source) &mdash; partners that price purely by volume (e.g. Amazon above 1L, Xpressbees above 1.5L) ignore it automatically.</div>
 
       <div class="sim-table-wrap">
         <div class="panel-head">
-          <h2 style="font-size:13px;">All partners <span style="color:var(--good); font-weight:600;">(greenest row = cheapest right now)</span></h2>
-          <button id="btn-reset-overrides" class="secondary">Reset manual edits</button>
+          <h2 style="font-size:13px;">Simulated allocation</h2>
+          <button id="btn-clear-all-sim" class="danger">Clear All</button>
         </div>
         <table id="tbl-sim">
-          <thead><tr><th>Partner</th><th id="sim-th-fwd">Fwd Cost/Order</th><th id="sim-th-rev">Rev Cost/Order</th><th>Est. Cost</th><th>Source</th></tr></thead>
+          <thead><tr><th>Delivery Partner</th><th>Cost Per Order</th><th>Total Cost Allocation</th><th>Order Volume</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cost/Order values are editable &mdash; click a cell to override the computed rate manually (e.g. for negotiated pricing); Est. Cost recalculates immediately.</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cost Per Order is editable &mdash; click it to override the computed (slab/zone-based) value manually; Total Cost Allocation and the summary below update immediately.</div>
         <div class="kpi-grid" id="sim-summary" style="margin-top:16px;"></div>
       </div>
     </div>
@@ -304,9 +308,11 @@ async function loadFilters(){
   const f = await apiGet('filters', {});
   const partnerSel = document.getElementById('f-partner');
   const zoneSel = document.getElementById('f-zone');
+  const simPartnerSel = document.getElementById('s-partner');
 
   (f.partners || []).forEach(p => {
     partnerSel.appendChild(new Option(p, p));
+    simPartnerSel.appendChild(new Option(p, p));
   });
   (f.zones || []).forEach(z => {
     zoneSel.appendChild(new Option(z, z));
@@ -545,31 +551,72 @@ function renderPartnerCpolComparison(byPartner){
   drawBarChart('chart-partner-cpol', items, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[(i) % BAR_COLORS.length]);
 }
 
-function renderZoneDistribution(byZone){
-  const items = (byZone || [])
-    .map(r => [r[0], r[4]]) // r[4] = Total Cost
-    .sort((a,b) => b[1]-a[1]);
-  drawBarChart('chart-zone-dist', items, fmtMoney);
+function drawPieChart(canvasId, items, legendId){
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const legend = document.getElementById(legendId);
+  legend.innerHTML = '';
+
+  if (!items || !items.length){
+    ctx.fillStyle = '#68728a';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('No data for this filter selection', 10, H/2);
+    return;
+  }
+
+  const total = items.reduce((s,i) => s + i[1], 0) || 1;
+  const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 10;
+  let startAngle = -Math.PI/2;
+
+  items.forEach((item, i) => {
+    const slice = (item[1] / total) * Math.PI * 2;
+    const color = BAR_COLORS[i % BAR_COLORS.length];
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    startAngle += slice;
+
+    const pct = ((item[1]/total)*100).toFixed(1);
+    const legendItem = document.createElement('div');
+    legendItem.style.display = 'flex';
+    legendItem.style.alignItems = 'center';
+    legendItem.style.gap = '6px';
+    legendItem.innerHTML = '<span style="width:10px;height:10px;border-radius:2px;background:'+color+';display:inline-block;"></span>' + item[0] + ' — ' + pct + '%';
+    legend.appendChild(legendItem);
+  });
 }
 
-/* ---------- Simulator: global Volume+Zone+ShipmentType -> all-partner table ---------- */
+function renderPartnerPieChart(byPartner){
+  const items = (byPartner || [])
+    .map(r => [r[0], r[4]]) // r[4] = Total Cost
+    .filter(r => r[1] > 0)
+    .sort((a,b) => b[1]-a[1]);
+  drawPieChart('chart-partner-pie', items, 'pie-legend');
+}
+
+/* ---------- Simulator: no Zone input (auto-resolved backend-side for
+   zone-priced partners), per-row Add, cached, live total. Headline
+   metric label changes with Shipment Type: Forward -> "Cost Per
+   Shipment", Reverse -> "CPOL", All -> "Total Cost". ---------- */
 
 let currentSimType = 'Forward';
-let simResults = [];        // raw results from apiSimulateAll: [{partner, forwardRate, forwardCost, forwardSource, reverseRate, reverseCost, reverseSource}]
-let simOverrides = {};      // { 'PartnerName|fwd'|'rev': manualRateNumber }
+let simRows = [];           // [{partner, volume, rate, source, label, edited}]
+const simRateCache = new Map(); // key: partner|volume|shipmentType -> {rate, source, label}
 
 const SIM_TYPE_NOTES = {
-  Forward: 'Forward shipping cost only.',
-  Reverse: 'RTO cost only (all Reverse orders are treated as RTO — see dashboard notes).',
-  All: 'Both Forward and RTO cost shown, and summed into Est. Cost — i.e. "what if this entire volume also came back". Not the same as the dashboard\'s Combined view, which sums real independent Forward/Reverse counts.'
+  Forward: 'Forward shipping cost only. Headline metric: Cost Per Shipment.',
+  Reverse: 'RTO cost only (all Reverse orders are treated as RTO — see dashboard notes). Headline metric: CPOL.',
+  All: 'Forward cost + RTO cost for the same volume, summed — i.e. "what if this entire volume also came back". Headline metric: Total Cost.'
 };
 
 function updateSimTypeNote(){
   document.getElementById('sim-type-note').textContent = SIM_TYPE_NOTES[currentSimType] || '';
-  const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
-  const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
-  document.getElementById('sim-th-fwd').style.display = showFwd ? '' : 'none';
-  document.getElementById('sim-th-rev').style.display = showRev ? '' : 'none';
 }
 
 /* ---------- Dashboard load (with session cache) ---------- */
@@ -579,19 +626,18 @@ function renderAllDashboardData(data){
   renderRowsTable('tbl-partner', data.byPartner, true);
   renderRowsTable('tbl-zone', data.byZone);
   renderMatrix(data.partnerXZone);
-  renderTrendChart('trend-cost-canvas', data.trend, 2, '#4f8cff', fmtMoney);
-  renderTrendChart('trend-orders-canvas', data.trend, 1, '#33c07a', fmtNum);
+  renderTrendChart('trend-cpol-canvas', data.trend, 3, '#3d6fd9', fmtMoney);
+  renderTrendChart('trend-orders-canvas', data.trend, 1, '#1f9d5c', fmtNum);
   renderPartnerComparison(data.byPartner);
   renderPartnerCpolComparison(data.byPartner);
-  renderZoneDistribution(data.byZone);
+  renderPartnerPieChart(data.byPartner);
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
-  document.getElementById('trend-title').textContent = 'Total Cost & Order Volume Trend (' + granLabel + ')';
+  document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
 
   const from = document.getElementById('f-from').value;
   const to = document.getElementById('f-to').value;
   const rangeLabel = (from && to) ? ('Totals for ' + from + ' to ' + to) : 'Totals for full selected range';
   document.getElementById('partner-chart-range').textContent = rangeLabel;
-  document.getElementById('zone-chart-range').textContent = rangeLabel;
 }
 
 async function loadDashboard(){
@@ -615,108 +661,91 @@ async function loadDashboard(){
   }
 }
 
-/* ---------- Cost Simulator (all partners, live-updating) ---------- */
-
-function effectiveRate(partner, kind, computedRate){
-  // kind: 'fwd' | 'rev'. Manual override (if the user edited the cell)
-  // takes priority over the backend-computed rate.
-  const key = partner + '|' + kind;
-  return simOverrides.hasOwnProperty(key) ? simOverrides[key] : computedRate;
-}
-
-function rowEstCost(r, volume){
-  const fwdRate = effectiveRate(r.partner, 'fwd', r.forwardRate);
-  const revRate = effectiveRate(r.partner, 'rev', r.reverseRate);
-  if (currentSimType === 'Forward') return fwdRate * volume;
-  if (currentSimType === 'Reverse') return revRate * volume;
-  return (fwdRate + revRate) * volume; // All
-}
+/* ---------- Cost Simulator (per-row Add, cached, live total) ---------- */
 
 function renderSimTable(){
   const tbody = document.querySelector('#tbl-sim tbody');
   tbody.innerHTML = '';
-  const volume = Number(document.getElementById('s-volume').value) || 0;
 
-  if (!simResults.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Enter a volume and click Update</td></tr>';
-    renderSimSummary(volume);
+  if (!simRows.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No rows added yet — pick a partner, enter a volume, and click Add</td></tr>';
+    renderSimSummary();
     return;
   }
 
-  const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
-  const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
-
-  // Sort ascending by whatever Est. Cost/order this shipment type implies,
-  // so row 0 is always the cheapest option — greenest highlight.
-  const sorted = simResults.slice().sort((a,b) => {
-    const aRate = (showFwd ? effectiveRate(a.partner,'fwd',a.forwardRate) : 0) + (showRev ? effectiveRate(a.partner,'rev',a.reverseRate) : 0);
-    const bRate = (showFwd ? effectiveRate(b.partner,'fwd',b.forwardRate) : 0) + (showRev ? effectiveRate(b.partner,'rev',b.reverseRate) : 0);
-    return aRate - bRate;
-  });
-
-  sorted.forEach((r, i) => {
+  simRows.forEach((row, i) => {
     const tr = document.createElement('tr');
-    if (i === 0) { tr.style.background = 'rgba(31,157,92,0.10)'; tr.style.borderLeft = '3px solid var(--good)'; }
-
-    const fwdRate = effectiveRate(r.partner, 'fwd', r.forwardRate);
-    const revRate = effectiveRate(r.partner, 'rev', r.reverseRate);
-    const est = rowEstCost(r, volume);
-    const sourceText = showFwd && showRev ? ('Fwd: ' + r.forwardSource + ' | RTO: ' + r.reverseSource)
-      : showFwd ? r.forwardSource : r.reverseSource;
-
     tr.innerHTML =
-      '<td>'+(i===0?'🏆 ':'')+r.partner+'</td>' +
-      '<td'+(showFwd?'':' style="display:none;"')+'><input class="sim-rate-input" data-partner="'+r.partner+'" data-kind="fwd" type="number" value="'+fwdRate+'" step="0.01"></td>' +
-      '<td'+(showRev?'':' style="display:none;"')+'><input class="sim-rate-input" data-partner="'+r.partner+'" data-kind="rev" type="number" value="'+revRate+'" step="0.01"></td>' +
-      '<td>'+fmtMoney(est)+'</td>' +
-      '<td class="sim-source" title="'+sourceText.replace(/"/g,'&quot;')+'">'+sourceText+'</td>';
+      '<td class="partner-cell">'+row.partner+'<span class="sub">'+row.shipmentType+'</span></td>' +
+      '<td><input class="sim-rate-input" data-idx="'+i+'" type="number" value="'+row.rate+'" step="0.01" title="'+(row.source||'').replace(/"/g,'&quot;')+'"><span class="badge-pill">'+row.label+'</span></td>' +
+      '<td>'+fmtMoney(row.rate * row.volume)+'</td>' +
+      '<td>'+fmtNum(row.volume)+'</td>' +
+      '<td><button class="icon-btn danger" data-remove="'+i+'">✕</button></td>';
     tbody.appendChild(tr);
   });
 
   tbody.querySelectorAll('.sim-rate-input').forEach(input => {
     input.addEventListener('change', () => {
-      const key = input.dataset.partner + '|' + input.dataset.kind;
+      const idx = Number(input.dataset.idx);
       const val = Number(input.value);
-      if (!isNaN(val)) simOverrides[key] = val;
+      if (!isNaN(val)) { simRows[idx].rate = val; simRows[idx].edited = true; }
+      renderSimTable();
+    });
+  });
+  tbody.querySelectorAll('button[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      simRows.splice(Number(btn.dataset.remove), 1);
       renderSimTable();
     });
   });
 
-  renderSimSummary(volume);
+  renderSimSummary();
 }
 
-function renderSimSummary(volume){
+function renderSimSummary(){
   const grid = document.getElementById('sim-summary');
-  if (!simResults.length){
+  if (!simRows.length){
     grid.innerHTML = '';
     return;
   }
-  let cheapest = null, cheapestRate = Infinity;
-  simResults.forEach(r => {
-    const showFwd = currentSimType === 'Forward' || currentSimType === 'All';
-    const showRev = currentSimType === 'Reverse' || currentSimType === 'All';
-    const rate = (showFwd ? effectiveRate(r.partner,'fwd',r.forwardRate) : 0) + (showRev ? effectiveRate(r.partner,'rev',r.reverseRate) : 0);
-    if (rate < cheapestRate) { cheapestRate = rate; cheapest = r.partner; }
-  });
+  // Auto-updates the moment simRows changes — no separate "calculate" step.
+  const totalOrders = simRows.reduce((s,r) => s + r.volume, 0);
+  const totalCost = simRows.reduce((s,r) => s + r.rate * r.volume, 0);
+  const overallCPO = totalOrders ? (totalCost / totalOrders) : 0;
   grid.innerHTML =
-    '<div class="kpi-card"><div class="label">Order Volume</div><div class="value">'+fmtNum(volume)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Cheapest Partner</div><div class="value">'+(cheapest||'-')+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Its Cost/Order</div><div class="value">'+fmtMoney(cheapestRate)+'</div></div>';
+    '<div class="kpi-card"><div class="label">Rows</div><div class="value">'+simRows.length+'</div></div>' +
+    '<div class="kpi-card"><div class="label">Total Orders</div><div class="value">'+fmtNum(totalOrders)+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Total Cost Allocation</div><div class="value">'+fmtMoney(totalCost)+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Overall Cost Per Order</div><div class="value">'+fmtMoney(overallCPO)+'</div></div>';
 }
 
-async function refreshSimulator(){
-  const zone = document.getElementById('s-zone').value;
-  const volume = document.getElementById('s-volume').value;
-  if (!volume){
-    setStatus('Simulator: enter a volume', 'error');
+async function addSimRow(){
+  const partner = document.getElementById('s-partner').value;
+  const volume = Number(document.getElementById('s-volume').value) || 0;
+
+  if (!partner || !volume){
+    setStatus('Simulator: choose a partner and enter a volume', 'error');
     return;
   }
+
+  const cacheKey = [partner, volume, currentSimType].join('|');
+  if (simRateCache.has(cacheKey)){
+    const cached = simRateCache.get(cacheKey);
+    simRows.push({ partner, volume, rate: cached.rate, source: cached.source, label: cached.label, shipmentType: currentSimType, edited: false });
+    renderSimTable();
+    setStatus('Row added (from cache)', 'cached');
+    return;
+  }
+
   setStatus('Simulating…', 'loading');
   try{
-    const data = await apiGet('simulateAll', { zone, volume });
-    simResults = data.results || [];
+    // No zone param — the backend auto-resolves zone-priced partners
+    // (Shadowfax, Bluedart) from their historical zone mix.
+    const result = await apiGet('simulate', { partner, volume, shipmentType: currentSimType });
+    simRateCache.set(cacheKey, { rate: result.rate, source: result.source, label: result.label });
+    simRows.push({ partner, volume, rate: result.rate, source: result.source, label: result.label, shipmentType: currentSimType, edited: false });
     renderSimTable();
-    setStatus('Simulator updated');
+    setStatus('Row added');
   } catch(err){
     setStatus('Simulation failed: ' + err.message, 'error');
   }
@@ -740,9 +769,9 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   loadDashboard();
 });
 
-document.getElementById('btn-refresh-sim').addEventListener('click', refreshSimulator);
-document.getElementById('btn-reset-overrides').addEventListener('click', () => {
-  simOverrides = {};
+document.getElementById('btn-add-sim').addEventListener('click', addSimRow);
+document.getElementById('btn-clear-all-sim').addEventListener('click', () => {
+  simRows = [];
   renderSimTable();
 });
 
@@ -751,7 +780,6 @@ document.querySelectorAll('#sim-type-seg button').forEach(btn => {
     currentSimType = btn.dataset.simtype;
     document.querySelectorAll('#sim-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
     updateSimTypeNote();
-    renderSimTable();
   });
 });
 
@@ -772,21 +800,17 @@ window.addEventListener('resize', () => {
   const partnerTrs = Array.from(document.querySelectorAll('#tbl-partner tbody tr')).filter(tr => !tr.classList.contains('empty-row'));
   const partnerRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[4].textContent.replace(/[^\d.-]/g,''))]);
   const partnerCpolRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[5].textContent.replace(/[^\d.-]/g,''))]).filter(r => r[1] > 0);
-  const zoneRows = Array.from(document.querySelectorAll('#tbl-zone tbody tr'))
-    .filter(tr => !tr.classList.contains('empty-row'))
-    .map(tr => [tr.children[0].textContent, Number(tr.children[4].textContent.replace(/[^\d.-]/g,''))]);
   if (partnerRows.length) drawBarChart('chart-partner-cost', partnerRows.sort((a,b)=>b[1]-a[1]), fmtMoney);
   if (partnerCpolRows.length) drawBarChart('chart-partner-cpol', partnerCpolRows, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[i % BAR_COLORS.length]);
-  if (zoneRows.length) drawBarChart('chart-zone-dist', zoneRows.sort((a,b)=>b[1]-a[1]), fmtMoney);
 });
 
 (async function init(){
   setStatus('Loading filters…', 'loading');
   updateSimTypeNote();
+  renderSimTable();
   try{
     await loadFilters();
     await loadDashboard();
-    await refreshSimulator();
   } catch(err){
     setStatus('Could not reach the Apps Script API. Check that it is deployed with "Anyone" access, and that API_URL in this file matches your /exec URL. (' + err.message + ')', 'error');
   }
