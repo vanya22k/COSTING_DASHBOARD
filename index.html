@@ -192,21 +192,17 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="pie-panel" style="position:relative;">
       <h2>Total Cost Share by Partner</h2>
-      <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">% of overall spend each partner accounts for</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">% of overall spend each partner accounts for &mdash; hover a slice for details</div>
       <canvas id="chart-partner-pie" width="400" height="260" style="max-height:260px;"></canvas>
+      <div id="pie-tooltip" style="display:none; position:absolute; pointer-events:none; background:var(--text); color:#fff; font-size:12px; padding:6px 10px; border-radius:6px; white-space:nowrap; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,0.2);"></div>
       <div id="pie-legend" style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:12px;"></div>
     </div>
     <div class="panel">
       <h2>CPOL by Partner <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(greenest bar = best allocation target)</span></h2>
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Cost per delivered order, sorted lowest first — lowest bar is the cheapest partner to route more orders to right now</div>
       <div class="chart-bar"><canvas id="chart-partner-cpol"></canvas></div>
-    </div>
-    <div class="panel full">
-      <h2>Partner Cost Comparison</h2>
-      <div id="partner-chart-range" style="font-size:11px; color:var(--muted); margin-bottom:10px;"></div>
-      <div class="chart-bar"><canvas id="chart-partner-cost"></canvas></div>
     </div>
 
     <div class="panel full">
@@ -270,11 +266,23 @@ let currentGranularity = 'day';
 const dashboardCache = new Map();
 
 function fmtMoney(n){
+  // Aggregate totals (Forward/Reverse/Total Cost, Total Cost Allocation)
+  // are shown in Lakhs — e.g. ₹4,380.34L — since raw rupee figures here
+  // run into crores and are hard to scan.
   n = Number(n) || 0;
-  return CUR + n.toLocaleString('en-IN', {maximumFractionDigits:0});
+  return CUR + (n / 100000).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + 'L';
 }
 function fmtNum(n){
-  return (Number(n)||0).toLocaleString('en-IN');
+  // Aggregate order counts, same Lakhs treatment.
+  n = Number(n) || 0;
+  return (n / 100000).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + 'L';
+}
+function fmtRate(n){
+  // Per-order rate values (CPOL, Cost Per Order) stay in plain rupees —
+  // these are inherently small (tens of rupees) and dividing by 100000
+  // would make them unreadable.
+  n = Number(n) || 0;
+  return CUR + n.toLocaleString('en-IN', {maximumFractionDigits:2});
 }
 
 function setStatus(msg, cls){
@@ -341,7 +349,7 @@ const KPI_DEFS = [
   ['forwardCost','Forward Cost', fmtMoney],
   ['reverseCost','Reverse Cost', fmtMoney],
   ['totalCost','Total Cost', fmtMoney, true],
-  ['cpol','CPOL', fmtMoney, true],
+  ['cpol','CPOL', fmtRate, true],
   ['returnPct','Return %', v => (Number(v)||0).toFixed(2) + '%']
 ];
 
@@ -378,7 +386,7 @@ function renderRowsTable(tableId, rows, highlightBestRow){
       '<td>'+fmtMoney(r[2])+'</td>' +
       '<td>'+fmtMoney(r[3])+'</td>' +
       '<td>'+fmtMoney(r[4])+'</td>' +
-      '<td>'+fmtMoney(r[5])+'</td>';
+      '<td>'+fmtRate(r[5])+'</td>';
     tbody.appendChild(tr);
   });
 }
@@ -527,21 +535,14 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-function renderPartnerComparison(byPartner){
-  const items = (byPartner || [])
-    .map(r => [r[0], r[4]])
-    .sort((a,b) => b[1]-a[1]);
-  drawBarChart('chart-partner-cost', items, fmtMoney);
-}
-
 function renderPartnerCpolComparison(byPartner){
   const items = (byPartner || [])
     .filter(r => r[5] > 0)
     .map(r => [r[0], r[5]]);
-  drawBarChart('chart-partner-cpol', items, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[(i) % BAR_COLORS.length]);
+  drawBarChart('chart-partner-cpol', items, fmtRate, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[(i) % BAR_COLORS.length]);
 }
 
-function drawPieChart(canvasId, items, legendId){
+function drawPieChart(canvasId, items, legendId, tooltipId){
   const canvas = document.getElementById(canvasId);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
@@ -549,37 +550,85 @@ function drawPieChart(canvasId, items, legendId){
 
   const legend = document.getElementById(legendId);
   legend.innerHTML = '';
+  const tooltip = tooltipId ? document.getElementById(tooltipId) : null;
 
   if (!items || !items.length){
     ctx.fillStyle = '#68728a';
     ctx.font = '13px sans-serif';
     ctx.fillText('No data for this filter selection', 10, H/2);
+    if (tooltip) { canvas.onmousemove = null; canvas.onmouseleave = null; }
     return;
   }
 
   const total = items.reduce((s,i) => s + i[1], 0) || 1;
   const cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 10;
-  let startAngle = -Math.PI/2;
+  let cursor = 0;
+  const slices = [];
 
   items.forEach((item, i) => {
-    const slice = (item[1] / total) * Math.PI * 2;
+    const sliceAngle = (item[1] / total) * Math.PI * 2;
+    const dataStart = cursor, dataEnd = cursor + sliceAngle;
     const color = BAR_COLORS[i % BAR_COLORS.length];
+
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+    ctx.arc(cx, cy, r, dataStart - Math.PI/2, dataEnd - Math.PI/2);
     ctx.closePath();
     ctx.fillStyle = color;
     ctx.fill();
-    startAngle += slice;
 
     const pct = ((item[1]/total)*100).toFixed(1);
+    slices.push({ label: item[0], value: item[1], pct, dataStart, dataEnd, color });
+
     const legendItem = document.createElement('div');
     legendItem.style.display = 'flex';
     legendItem.style.alignItems = 'center';
     legendItem.style.gap = '6px';
     legendItem.innerHTML = '<span style="width:10px;height:10px;border-radius:2px;background:'+color+';display:inline-block;"></span>' + item[0] + ' — ' + pct + '%';
     legend.appendChild(legendItem);
+
+    cursor = dataEnd;
   });
+
+  if (!tooltip) return;
+
+  canvas.onmousemove = function(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+    const dx = mx - cx, dy = my - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist > r){
+      tooltip.style.display = 'none';
+      canvas.style.cursor = 'default';
+      return;
+    }
+
+    let shifted = Math.atan2(dy, dx) + Math.PI/2;
+    if (shifted < 0) shifted += Math.PI * 2;
+
+    const hit = slices.find(s => shifted >= s.dataStart && shifted < s.dataEnd);
+    if (!hit){
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    canvas.style.cursor = 'pointer';
+    tooltip.style.display = 'block';
+    tooltip.innerHTML = '<strong>' + hit.label + '</strong><br>' + fmtMoney(hit.value) + ' &middot; ' + hit.pct + '%';
+
+    const panelRect = canvas.closest('.panel').getBoundingClientRect();
+    tooltip.style.left = (e.clientX - panelRect.left + 14) + 'px';
+    tooltip.style.top = (e.clientY - panelRect.top + 14) + 'px';
+  };
+
+  canvas.onmouseleave = function(){
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'default';
+  };
 }
 
 function renderPartnerPieChart(byPartner){
@@ -587,7 +636,7 @@ function renderPartnerPieChart(byPartner){
     .map(r => [r[0], r[4]])
     .filter(r => r[1] > 0)
     .sort((a,b) => b[1]-a[1]);
-  drawPieChart('chart-partner-pie', items, 'pie-legend');
+  drawPieChart('chart-partner-pie', items, 'pie-legend', 'pie-tooltip');
 }
 
 let currentSimType = 'Forward';
@@ -609,18 +658,12 @@ function renderAllDashboardData(data){
   renderRowsTable('tbl-partner', data.byPartner, true);
   renderRowsTable('tbl-zone', data.byZone);
   renderMatrix(data.partnerXZone);
-  renderTrendChart('trend-cpol-canvas', data.trend, 3, '#3d6fd9', fmtMoney);
+  renderTrendChart('trend-cpol-canvas', data.trend, 3, '#3d6fd9', fmtRate);
   renderTrendChart('trend-orders-canvas', data.trend, 1, '#1f9d5c', fmtNum);
-  renderPartnerComparison(data.byPartner);
   renderPartnerCpolComparison(data.byPartner);
   renderPartnerPieChart(data.byPartner);
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
-
-  const from = document.getElementById('f-from').value;
-  const to = document.getElementById('f-to').value;
-  const rangeLabel = (from && to) ? ('Totals for ' + from + ' to ' + to) : 'Totals for full selected range';
-  document.getElementById('partner-chart-range').textContent = rangeLabel;
 }
 
 async function loadDashboard(){
@@ -696,7 +739,7 @@ function renderSimSummary(){
     '<div class="kpi-card"><div class="label">Rows</div><div class="value">'+simRows.length+'</div></div>' +
     '<div class="kpi-card"><div class="label">Total Orders</div><div class="value">'+fmtNum(totalOrders)+'</div></div>' +
     '<div class="kpi-card highlight"><div class="label">Total Cost Allocation</div><div class="value">'+fmtMoney(totalCost)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Overall Cost Per Order</div><div class="value">'+fmtMoney(overallCPO)+'</div></div>';
+    '<div class="kpi-card highlight"><div class="label">Overall Cost Per Order</div><div class="value">'+fmtRate(overallCPO)+'</div></div>';
 }
 
 async function addSimRow(){
@@ -774,10 +817,8 @@ document.querySelectorAll('#granularity-seg button').forEach(btn => {
 
 window.addEventListener('resize', () => {
   const partnerTrs = Array.from(document.querySelectorAll('#tbl-partner tbody tr')).filter(tr => !tr.classList.contains('empty-row'));
-  const partnerRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[4].textContent.replace(/[^\d.-]/g,''))]);
   const partnerCpolRows = partnerTrs.map(tr => [tr.children[0].textContent.replace('🏆 ',''), Number(tr.children[5].textContent.replace(/[^\d.-]/g,''))]).filter(r => r[1] > 0);
-  if (partnerRows.length) drawBarChart('chart-partner-cost', partnerRows.sort((a,b)=>b[1]-a[1]), fmtMoney);
-  if (partnerCpolRows.length) drawBarChart('chart-partner-cpol', partnerCpolRows, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[i % BAR_COLORS.length]);
+  if (partnerCpolRows.length) drawBarChart('chart-partner-cpol', partnerCpolRows, fmtRate, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[i % BAR_COLORS.length]);
 });
 
 (async function init(){
