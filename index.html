@@ -253,10 +253,11 @@
               <th>Cap %</th>
               <th>Current Volume</th>
               <th>Current %</th>
+              <th>Total Allocated Cost</th>
               <th>Applicable Cost</th>
               <th>Ideal Volume</th>
               <th>Ideal %</th>
-              <th>Allocated Cost</th>
+              <th>Ideal Allocated Cost</th>
               <th></th>
             </tr>
           </thead>
@@ -951,14 +952,27 @@ function syncAllocTotals(){
 async function fetchApplicableCost(partner){
   const row = allocData[partner];
   if (!row) return;
-  const volume = Math.round(row.currentVolume) || 0;
-  if (volume <= 0) return; // nothing to price yet
+
+  let volume = Math.round(row.currentVolume) || 0;
+  if (volume <= 0){
+    // No Current Volume typed yet — estimate using this partner's real
+    // historical order volume (the same source auto-Cap comes from) so
+    // Applicable Cost — and therefore the optimizer — isn't stuck waiting
+    // on every partner to have a manually-entered volume. Once a real
+    // Current Volume is typed, the change handler re-calls this and the
+    // real value takes over.
+    const histRow = lastDashboardData && lastDashboardData.byPartner
+      ? lastDashboardData.byPartner.find(r => r[0] === partner)
+      : null;
+    volume = histRow ? Math.round(histRow[1]) || 0 : 0;
+    if (volume <= 0) return; // genuinely no data available anywhere yet
+  }
 
   const cacheKey = [partner, volume, allocShipType].join('|');
   if (allocCostCache.has(cacheKey)){
     const cached = allocCostCache.get(cacheKey);
     row.cost = cached.rate; row.costSource = cached.source; row.costOverridden = false;
-    renderAllocTable();
+    runAllocOptimizer();
     return;
   }
 
@@ -972,7 +986,7 @@ async function fetchApplicableCost(partner){
     row.cost = 0; row.costSource = 'Error: ' + err.message;
   }
   row.costLoading = false;
-  renderAllocTable();
+  runAllocOptimizer();
 }
 
 /** Recomputes the ideal allocation and re-renders. Call after any input change. */
@@ -994,39 +1008,44 @@ function runAllocOptimizer(){
     .filter(p => allocData[p] && allocData[p].cost != null)
     .map(p => ({ key: p, cost: allocData[p].cost, capVol: (allocData[p].cap/100) * totalVolume }));
 
-  if (optInput.length < partners.length){
-    // still waiting on one or more Applicable Cost fetches
+  const pendingCount = partners.length - optInput.length;
+
+  if (!optInput.length){
     banner.style.display = 'block';
     banner.style.background = 'rgba(184,121,15,0.12)';
     banner.style.color = 'var(--warn)';
-    banner.innerHTML = 'Waiting for Applicable Cost to load for all selected partners…';
+    banner.innerHTML = 'Waiting for Applicable Cost to load…';
     summary.innerHTML = '';
     renderAllocTable();
     return;
   }
 
   const result = computeIdealAllocation(optInput, totalVolume, allocTargetCPO);
+  // Partners still waiting on a cost fetch get no ideal volume this
+  // round — they'll be included automatically once their cost resolves.
   partners.forEach(p => {
+    if (!optInput.some(o => o.key === p)) { allocData[p].idealVolume = 0; allocData[p].idealPct = 0; return; }
     const vol = result.volumes[p] || 0;
     allocData[p].idealVolume = vol;
     allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
   });
 
   // Current/existing blended CPO, using the SAME fixed Applicable Cost values
-  const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * allocData[p].cost, 0);
+  const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * (allocData[p].cost||0), 0);
   const currentCPO = totalVolume > 0 ? currentCost / totalVolume : 0;
 
   banner.style.display = 'block';
+  const pendingNote = pendingCount > 0 ? ' <em>(' + pendingCount + ' partner' + (pendingCount>1?'s':'') + ' still loading Applicable Cost — will join automatically.)</em>' : '';
   if (result.insufficientCapacity){
     banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
-    banner.innerHTML = '<strong>Not enough partner capacity.</strong> ' + result.reason;
+    banner.innerHTML = '<strong>Not enough partner capacity.</strong> ' + result.reason + pendingNote;
   } else if (result.achievable){
     banner.style.background = 'rgba(31,157,92,0.10)'; banner.style.color = 'var(--good)';
-    banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPO.';
+    banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPO.' + pendingNote;
   } else {
     banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
     banner.innerHTML = '<strong>Target CPO Not Achievable Under Current Caps.</strong> Closest achievable: ' +
-      fmtRate(result.achievedCPO) + ' (Target ' + fmtRate(allocTargetCPO) + ', diff ' + fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)) + '). ' + (result.reason || '');
+      fmtRate(result.achievedCPO) + ' (Target ' + fmtRate(allocTargetCPO) + ', diff ' + fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)) + '). ' + (result.reason || '') + pendingNote;
   }
 
   summary.innerHTML =
@@ -1045,7 +1064,7 @@ function renderAllocTable(){
 
   const partners = [...allocSelected];
   if (!partners.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Select one or more delivery partners above to begin</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Select one or more delivery partners above to begin</td></tr>';
     return;
   }
 
@@ -1058,7 +1077,8 @@ function renderAllocTable(){
     const infeasible = (row.currentPct||0) > cap + 0.01;
     const idealVol = row.idealVolume || 0;
     const idealPct = row.idealPct || 0;
-    const allocatedCost = idealVol * (row.cost || 0);
+    const currentAllocatedCost = (row.currentVolume||0) * (row.cost || 0);
+    const idealAllocatedCost = idealVol * (row.cost || 0);
 
     const tr = document.createElement('tr');
     if (infeasible) tr.style.background = 'rgba(201,55,44,0.06)';
@@ -1071,18 +1091,19 @@ function renderAllocTable(){
       '<td>' + (allocMode==='percentage'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentPct" type="number" min="0" max="100" step="0.01" placeholder="0" value="'+(row.currentPct==null?'':row.currentPct.toFixed(2))+'" style="width:80px;">'
         : (row.currentPct||0).toFixed(2)+'%') + '</td>' +
+      '<td>'+(row.cost==null ? '—' : fmtMoney(currentAllocatedCost))+'</td>' +
       '<td>' + (row.costLoading
         ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
         : '<input class="alloc-input" data-partner="'+p+'" data-field="cost" type="number" min="0" step="0.01" value="'+(row.cost==null?'':row.cost)+'" title="'+(row.costSource||'').replace(/"/g,'&quot;')+'" style="width:80px;">') + '</td>' +
       '<td>'+fmtNum(idealVol)+'</td>' +
       '<td>'+idealPct.toFixed(2)+'%</td>' +
-      '<td>'+fmtMoney(allocatedCost)+'</td>' +
+      '<td>'+fmtMoney(idealAllocatedCost)+'</td>' +
       '<td><button class="icon-btn danger" data-remove-partner="'+p+'">✕</button></td>';
     tbody.appendChild(tr);
 
     if (infeasible){
       const warnTr = document.createElement('tr');
-      warnTr.innerHTML = '<td colspan="9" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its historical Cap (' + cap.toFixed(2) + '%). This allocation is not feasible — reduce this input. ' +
+      warnTr.innerHTML = '<td colspan="10" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its historical Cap (' + cap.toFixed(2) + '%). This allocation is not feasible — reduce this input. ' +
         '<button class="icon-btn" data-fix-partner="'+p+'" style="margin-left:8px;">Clamp to cap</button></td>';
       tbody.appendChild(warnTr);
     }
@@ -1096,7 +1117,7 @@ function renderAllocTable(){
   tfootTr.innerHTML =
     '<td>Total</td><td></td><td></td>' +
     '<td>'+totalCurrentPct.toFixed(2)+'%</td>' +
-    '<td></td><td></td>' +
+    '<td></td><td></td><td></td>' +
     '<td>'+totalIdealPct.toFixed(2)+'%</td>' +
     '<td>'+fmtMoney(totalAllocatedCost)+'</td><td></td>';
   tfoot.appendChild(tfootTr);
