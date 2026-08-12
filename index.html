@@ -217,7 +217,6 @@
           </div>
         </div>
       </div>
-      <div id="sim-type-note" style="font-size:11px; color:var(--muted); margin-bottom:14px;"></div>
 
       <div class="sim-grid" id="sim-input-grid">
         <div class="field">
@@ -640,18 +639,13 @@ function renderPartnerPieChart(byPartner){
 }
 
 let currentSimType = 'Forward';
+// Each row is type-agnostic: { partner, volume, rates: {Forward:{rate,source}|undefined, ...}, overrides: {Forward:number|undefined, ...} }
+// The Shipment Type toggle is a GLOBAL view switch — every row in the
+// table always displays the currently selected type, recomputed on the
+// fly (from cache, or fetched) rather than being locked to whichever
+// type was active when the row was first added.
 let simRows = [];
-const simRateCache = new Map();
-
-const SIM_TYPE_NOTES = {
-  Forward: 'Forward shipping cost only. Headline metric: Cost Per Shipment.',
-  Reverse: 'RTO cost only (all Reverse orders are treated as RTO — see dashboard notes). Headline metric: CPOL.',
-  All: 'Forward cost + RTO cost for the same volume, summed — i.e. "what if this entire volume also came back". Headline metric: Total Cost.'
-};
-
-function updateSimTypeNote(){
-  document.getElementById('sim-type-note').textContent = SIM_TYPE_NOTES[currentSimType] || '';
-}
+const simRateCache = new Map(); // key: partner|volume|shipmentType -> {rate, source}
 
 function renderAllDashboardData(data){
   renderKpis(data.kpis || {});
@@ -687,6 +681,13 @@ async function loadDashboard(){
   }
 }
 
+/** Resolved rate for a row under the CURRENT shipment type, or null if not yet fetched. */
+function resolvedRate(row){
+  if (row.overrides[currentSimType] != null) return row.overrides[currentSimType];
+  const cached = row.rates[currentSimType];
+  return cached ? cached.rate : null;
+}
+
 function renderSimTable(){
   const tbody = document.querySelector('#tbl-sim tbody');
   tbody.innerHTML = '';
@@ -698,12 +699,17 @@ function renderSimTable(){
   }
 
   simRows.forEach((row, i) => {
+    const rate = resolvedRate(row);
+    const cached = row.rates[currentSimType];
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td class="partner-cell">'+row.partner+'<span class="sub">'+row.shipmentType+'</span></td>' +
+      '<td>'+row.partner+'</td>' +
       '<td>'+fmtNum(row.volume)+'</td>' +
-      '<td><input class="sim-rate-input" data-idx="'+i+'" type="number" value="'+row.rate+'" step="0.01" title="'+(row.source||'').replace(/"/g,'&quot;')+'"><span class="badge-pill">'+row.label+'</span></td>' +
-      '<td>'+fmtMoney(row.rate * row.volume)+'</td>' +
+      '<td>' + (rate == null
+        ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
+        : '<input class="sim-rate-input" data-idx="'+i+'" type="number" value="'+rate+'" step="0.01" title="'+((cached && cached.source) || '').replace(/"/g,'&quot;')+'">') +
+        '</td>' +
+      '<td>'+(rate == null ? '—' : fmtMoney(rate * row.volume))+'</td>' +
       '<td><button class="icon-btn danger" data-remove="'+i+'">✕</button></td>';
     tbody.appendChild(tr);
   });
@@ -712,7 +718,7 @@ function renderSimTable(){
     input.addEventListener('change', () => {
       const idx = Number(input.dataset.idx);
       const val = Number(input.value);
-      if (!isNaN(val)) { simRows[idx].rate = val; simRows[idx].edited = true; }
+      if (!isNaN(val)) { simRows[idx].overrides[currentSimType] = val; }
       renderSimTable();
     });
   });
@@ -732,14 +738,27 @@ function renderSimSummary(){
     grid.innerHTML = '';
     return;
   }
-  const totalOrders = simRows.reduce((s,r) => s + r.volume, 0);
-  const totalCost = simRows.reduce((s,r) => s + r.rate * r.volume, 0);
+  // Only rows with a resolved rate for the current type count toward the
+  // totals — rows still loading are excluded until their rate arrives.
+  const resolvedRows = simRows.filter(r => resolvedRate(r) != null);
+  const totalOrders = resolvedRows.reduce((s,r) => s + r.volume, 0);
+  const totalCost = resolvedRows.reduce((s,r) => s + resolvedRate(r) * r.volume, 0);
   const overallCPO = totalOrders ? (totalCost / totalOrders) : 0;
   grid.innerHTML =
     '<div class="kpi-card"><div class="label">Rows</div><div class="value">'+simRows.length+'</div></div>' +
     '<div class="kpi-card"><div class="label">Total Orders</div><div class="value">'+fmtNum(totalOrders)+'</div></div>' +
     '<div class="kpi-card highlight"><div class="label">Total Cost Allocation</div><div class="value">'+fmtMoney(totalCost)+'</div></div>' +
     '<div class="kpi-card highlight"><div class="label">Overall Cost Per Order</div><div class="value">'+fmtRate(overallCPO)+'</div></div>';
+}
+
+/** Fetches (or reuses cached) rate for a partner/volume/type combo. */
+async function fetchSimRate(partner, volume, shipmentType){
+  const cacheKey = [partner, volume, shipmentType].join('|');
+  if (simRateCache.has(cacheKey)) return { value: simRateCache.get(cacheKey), fromCache: true };
+  const result = await apiGet('simulate', { partner, volume, shipmentType });
+  const val = { rate: result.rate, source: result.source };
+  simRateCache.set(cacheKey, val);
+  return { value: val, fromCache: false };
 }
 
 async function addSimRow(){
@@ -751,25 +770,40 @@ async function addSimRow(){
     return;
   }
 
-  const cacheKey = [partner, volume, currentSimType].join('|');
-  if (simRateCache.has(cacheKey)){
-    const cached = simRateCache.get(cacheKey);
-    simRows.push({ partner, volume, rate: cached.rate, source: cached.source, label: cached.label, shipmentType: currentSimType, edited: false });
-    renderSimTable();
-    setStatus('Row added (from cache)', 'cached');
-    return;
-  }
+  const row = { partner, volume, rates: {}, overrides: {} };
+  simRows.push(row);
+  renderSimTable();
 
   setStatus('Simulating…', 'loading');
   try{
-    const result = await apiGet('simulate', { partner, volume, shipmentType: currentSimType });
-    simRateCache.set(cacheKey, { rate: result.rate, source: result.source, label: result.label });
-    simRows.push({ partner, volume, rate: result.rate, source: result.source, label: result.label, shipmentType: currentSimType, edited: false });
+    const { value, fromCache } = await fetchSimRate(partner, volume, currentSimType);
+    row.rates[currentSimType] = value;
     renderSimTable();
-    setStatus('Row added');
+    setStatus(fromCache ? 'Row added (from cache)' : 'Row added', fromCache ? 'cached' : undefined);
   } catch(err){
     setStatus('Simulation failed: ' + err.message, 'error');
   }
+}
+
+/** Called whenever the Shipment Type toggle changes — recomputes every
+ * row's rate for the newly-selected type (skipping rows that already
+ * have a cached rate or a manual override for that type). */
+async function refreshSimRowsForCurrentType(){
+  const pending = simRows.filter(r => r.overrides[currentSimType] == null && !r.rates[currentSimType]);
+  renderSimTable(); // show loading state immediately for pending rows
+  if (!pending.length) return;
+
+  setStatus('Recalculating for ' + currentSimType + '…', 'loading');
+  await Promise.all(pending.map(async row => {
+    try{
+      const { value } = await fetchSimRate(row.partner, row.volume, currentSimType);
+      row.rates[currentSimType] = value;
+    } catch(err){
+      row.rates[currentSimType] = { rate: 0, source: 'Error: ' + err.message };
+    }
+  }));
+  renderSimTable();
+  setStatus('Updated for ' + currentSimType);
 }
 
 ['f-partner','f-zone','f-type','f-payment'].forEach(id => {
@@ -798,7 +832,7 @@ document.querySelectorAll('#sim-type-seg button').forEach(btn => {
   btn.addEventListener('click', () => {
     currentSimType = btn.dataset.simtype;
     document.querySelectorAll('#sim-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
-    updateSimTypeNote();
+    refreshSimRowsForCurrentType();
   });
 });
 
@@ -823,7 +857,6 @@ window.addEventListener('resize', () => {
 
 (async function init(){
   setStatus('Loading filters…', 'loading');
-  updateSimTypeNote();
   renderSimTable();
   try{
     await loadFilters();
