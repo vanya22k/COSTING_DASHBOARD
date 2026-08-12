@@ -207,10 +207,10 @@
 
     <div class="panel full">
       <div class="panel-head">
-        <h2>Cost Simulator</h2>
+        <h2>Cost Simulator — Target CPO Allocation Optimizer</h2>
         <div class="field" style="align-items:flex-end;">
           <label>Shipment Type</label>
-          <div class="seg" id="sim-type-seg">
+          <div class="seg" id="alloc-type-seg">
             <button data-simtype="Forward" class="active">Forward</button>
             <button data-simtype="Reverse">Reverse</button>
             <button data-simtype="All">All</button>
@@ -218,33 +218,57 @@
         </div>
       </div>
 
-      <div class="sim-grid" id="sim-input-grid">
+      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:repeat(3,1fr) auto;">
         <div class="field">
-          <label>Delivery Partner</label>
-          <select id="s-partner"></select>
+          <label>Target Cost Per Order</label>
+          <input type="number" id="alloc-target-cpo" placeholder="e.g. 40" min="0" step="0.01">
         </div>
         <div class="field">
-          <label>Order Volume</label>
-          <input type="number" id="s-volume" placeholder="e.g. 220000" min="0">
+          <label>Allocation Mode</label>
+          <select id="alloc-mode-select">
+            <option value="volume">Volume</option>
+            <option value="percentage">Percentage</option>
+          </select>
         </div>
         <div class="field" style="justify-content:flex-end;">
-          <div style="font-size:11px; color:var(--muted);">Zone is resolved automatically for zone-priced partners (Shadowfax, Bluedart) based on their historical zone mix — nothing to select here.</div>
+          <div style="font-size:11px; color:var(--muted);">Weight assumed at 250gm for all partners, same as the main dashboard.</div>
         </div>
-        <button id="btn-add-sim">Add</button>
+        <button id="btn-alloc-reset" class="secondary">Reset All</button>
       </div>
 
-      <div class="sim-table-wrap">
-        <div class="panel-head">
-          <h2 style="font-size:13px;">Simulated allocation</h2>
-          <button id="btn-clear-all-sim" class="danger">Clear All</button>
-        </div>
-        <table id="tbl-sim">
-          <thead><tr><th>Delivery Partner</th><th>Order Volume</th><th>Cost Per Order</th><th>Total Cost Allocation</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cost Per Order is editable &mdash; click it to override the computed (slab/zone-based) value manually; Total Cost Allocation and the summary below update immediately.</div>
-        <div class="kpi-grid" id="sim-summary" style="margin-top:16px;"></div>
+      <div class="field" style="margin-top:14px; max-width:340px; position:relative;">
+        <label>Delivery Partners</label>
+        <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
+          <span id="alloc-partner-dd-label">Select partners…</span>
+          <span style="color:var(--muted); font-size:11px;">▾</span>
+        </button>
+        <div id="alloc-partner-dd-panel" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); z-index:20; min-width:220px; max-height:260px; overflow-y:auto; padding:6px;"></div>
       </div>
+
+      <div class="sim-table-wrap" style="overflow-x:auto;">
+        <table id="tbl-alloc" style="min-width:920px;">
+          <thead>
+            <tr>
+              <th>Delivery Partner</th>
+              <th>Cap %</th>
+              <th>Current Volume</th>
+              <th>Current %</th>
+              <th>Applicable Cost</th>
+              <th>Ideal Volume</th>
+              <th>Ideal %</th>
+              <th>Allocated Cost</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Current Volume/% represents what's actually been allocated recently. Applicable Cost is auto-calculated from the Rate Card at your Current Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% is calculated to get as close to the Target CPO as possible without unnecessarily over-using cheaper partners, respecting each partner's Cap %.</div>
+      </div>
+
+      <div id="alloc-feasibility-banner" style="display:none; margin-top:16px; padding:12px 16px; border-radius:8px; font-size:13px;"></div>
+
+      <div class="kpi-grid" id="alloc-summary" style="margin-top:16px;"></div>
     </div>
   </div>
 
@@ -307,15 +331,16 @@ async function apiGet(action, params){
 
 /* ---------- Filters / dropdowns ---------- */
 
+let allPartners = [];
+
 async function loadFilters(){
   const f = await apiGet('filters', {});
   const partnerSel = document.getElementById('f-partner');
   const zoneSel = document.getElementById('f-zone');
-  const simPartnerSel = document.getElementById('s-partner');
 
-  (f.partners || []).forEach(p => {
+  allPartners = f.partners || [];
+  allPartners.forEach(p => {
     partnerSel.appendChild(new Option(p, p));
-    simPartnerSel.appendChild(new Option(p, p));
   });
   (f.zones || []).forEach(z => {
     zoneSel.appendChild(new Option(z, z));
@@ -325,6 +350,8 @@ async function loadFilters(){
 
   if (f.dateMin) document.getElementById('f-from').value = f.dateMin.slice(0,10);
   if (f.dateMax) document.getElementById('f-to').value = f.dateMax.slice(0,10);
+
+  renderAllocPartnerChips();
 }
 
 function currentFilters(){
@@ -638,16 +665,476 @@ function renderPartnerPieChart(byPartner){
   drawPieChart('chart-partner-pie', items, 'pie-legend', 'pie-tooltip');
 }
 
-let currentSimType = 'Forward';
-// Each row is type-agnostic: { partner, volume, rates: {Forward:{rate,source}|undefined, ...}, overrides: {Forward:number|undefined, ...} }
-// The Shipment Type toggle is a GLOBAL view switch — every row in the
-// table always displays the currently selected type, recomputed on the
-// fly (from cache, or fetched) rather than being locked to whichever
-// type was active when the row was first added.
-let simRows = [];
-const simRateCache = new Map(); // key: partner|volume|shipmentType -> {rate, source}
+/*************************************************************
+ * COST SIMULATOR — Target CPO Allocation Optimizer
+ *
+ * Answers: "what should my ideal partner mix be to hit a Target CPO,
+ * compared with what I'm currently doing?"
+ *
+ * - Applicable Cost per partner is fetched ONCE via the existing
+ *   `simulate` action (reusing the real Rate Card engine, at 250gm,
+ *   same as the main dashboard), based on that partner's CURRENT
+ *   volume. It is then treated as FIXED for the optimizer — it does
+ *   NOT get re-fetched as Ideal Volume changes, per explicit design
+ *   decision. It remains user-editable at any time; an edit overrides
+ *   the fetched value immediately for all calculations.
+ * - Forward/Reverse is a single global toggle for the whole table
+ *   (no per-partner mixing, no "All" option — this simulator answers
+ *   a single-shipment-type allocation question).
+ * - Volume/Percentage is a single global input mode. Whichever is NOT
+ *   the input mode is always derived, never independently editable.
+ * - Ideal Allocation uses the MINIMUM necessary cheap-partner capacity
+ *   to hit Target CPO exactly (not a blind max-fill of the cheapest
+ *   partner) — see computeIdealAllocation() below.
+ *************************************************************/
+
+// ---------- Ideal-allocation optimizer (pure function, no DOM/API) ----------
+
+const ALLOC_EPS = 1e-6;
+
+function allocGreedyFill(sortedPartners, totalVolume){
+  let remaining = totalVolume;
+  const volumes = {};
+  let cost = 0;
+  for (const p of sortedPartners){
+    if (remaining <= ALLOC_EPS){ volumes[p.key] = 0; continue; }
+    const take = Math.min(p.capVol, remaining);
+    volumes[p.key] = take;
+    cost += take * p.cost;
+    remaining -= take;
+  }
+  const placed = totalVolume - remaining;
+  return { volumes, cost, placed, blendedCost: placed > ALLOC_EPS ? cost / placed : 0 };
+}
+
+/**
+ * partners: [{ key, cost, capVol }]   (capVol = cap% * totalVolume, in volume units)
+ * totalVolume: number — same total as Current allocation, just reshuffled
+ * target: number — Target CPO
+ *
+ * Returns { volumes, achievedCPO, achievable, reason, insufficientCapacity }
+ */
+function computeIdealAllocation(partners, totalVolume, target){
+  if (!partners.length || totalVolume <= ALLOC_EPS){
+    return { volumes: {}, achievedCPO: 0, achievable: false, reason: 'Add at least one partner with volume > 0.', insufficientCapacity: false };
+  }
+
+  const totalCap = partners.reduce((s,p) => s + p.capVol, 0);
+  const sortedAsc = [...partners].sort((a,b) => a.cost - b.cost);
+
+  if (totalCap < totalVolume - ALLOC_EPS){
+    const filled = allocGreedyFill(sortedAsc, totalVolume);
+    return {
+      volumes: filled.volumes,
+      achievedCPO: filled.blendedCost,
+      achievable: false,
+      reason: 'Combined partner caps (' + fmtNum(totalCap) + ') are below the total volume (' + fmtNum(totalVolume) + ') — increase caps or add partners.',
+      insufficientCapacity: true
+    };
+  }
+
+  const minFill = allocGreedyFill(sortedAsc, totalVolume);
+  const maxFill = allocGreedyFill([...sortedAsc].reverse(), totalVolume);
+
+  if (target <= minFill.blendedCost + ALLOC_EPS){
+    return {
+      volumes: minFill.volumes,
+      achievedCPO: minFill.blendedCost,
+      achievable: Math.abs(target - minFill.blendedCost) <= 0.01,
+      reason: target < minFill.blendedCost - 0.01 ? 'Target is below the cheapest achievable blend under current caps.' : null,
+      insufficientCapacity: false
+    };
+  }
+  if (target >= maxFill.blendedCost - ALLOC_EPS){
+    return {
+      volumes: maxFill.volumes,
+      achievedCPO: maxFill.blendedCost,
+      achievable: Math.abs(target - maxFill.blendedCost) <= 0.01,
+      reason: target > maxFill.blendedCost + 0.01 ? 'Target is above the priciest achievable blend under current caps.' : null,
+      insufficientCapacity: false
+    };
+  }
+
+  // Target strictly between minFill/maxFill — exact hit is guaranteed.
+  // Two-anchor alligation: cheapest partner (low anchor, cascading to
+  // next-cheapest as caps run out) blended against the cheapest
+  // partner priced AT/ABOVE target (high anchor, cascading similarly).
+  const low = sortedAsc.filter(p => p.cost <= target);
+  const high = sortedAsc.filter(p => p.cost > target);
+
+  const volumes = {};
+  partners.forEach(p => { volumes[p.key] = 0; });
+
+  let li = 0, hi = 0, remaining = totalVolume, guard = 0;
+  while (remaining > ALLOC_EPS && guard++ < 1000){
+    const curLow = low[li], curHigh = high[hi];
+    if (!curLow || !curHigh) break;
+
+    const lowCapLeft = curLow.capVol - volumes[curLow.key];
+    const highCapLeft = curHigh.capVol - volumes[curHigh.key];
+    const lowSpread = target - curLow.cost;
+    const highSpread = curHigh.cost - target;
+    const totalSpread = lowSpread + highSpread;
+
+    let takeLow, takeHigh;
+    if (totalSpread <= ALLOC_EPS){
+      takeLow = remaining; takeHigh = 0;
+    } else {
+      const neededLowRatio = highSpread / totalSpread;
+      const neededHighRatio = lowSpread / totalSpread;
+      let candLow = remaining * neededLowRatio;
+      let candHigh = remaining * neededHighRatio;
+
+      if (candLow > lowCapLeft + ALLOC_EPS){
+        candLow = lowCapLeft;
+        candHigh = neededLowRatio > ALLOC_EPS ? (lowCapLeft * (neededHighRatio / neededLowRatio)) : remaining;
+      }
+      if (candHigh > highCapLeft + ALLOC_EPS){
+        candHigh = highCapLeft;
+        candLow = neededHighRatio > ALLOC_EPS ? (highCapLeft * (neededLowRatio / neededHighRatio)) : remaining;
+      }
+      takeLow = Math.min(candLow, lowCapLeft, remaining);
+      takeHigh = Math.min(candHigh, highCapLeft, remaining - takeLow);
+    }
+
+    volumes[curLow.key] += takeLow;
+    volumes[curHigh.key] += takeHigh;
+    remaining -= (takeLow + takeHigh);
+
+    if (curLow.capVol - volumes[curLow.key] <= ALLOC_EPS) li++;
+    if (curHigh.capVol - volumes[curHigh.key] <= ALLOC_EPS) hi++;
+    if (takeLow <= ALLOC_EPS && takeHigh <= ALLOC_EPS) break;
+  }
+
+  const placed = totalVolume - remaining;
+  const totalCost = partners.reduce((s,p) => s + (volumes[p.key]||0) * p.cost, 0);
+  const achievedCPO = placed > ALLOC_EPS ? totalCost / placed : 0;
+
+  return {
+    volumes,
+    achievedCPO,
+    achievable: Math.abs(achievedCPO - target) <= 0.01,
+    reason: null,
+    insufficientCapacity: false
+  };
+}
+
+// ---------- State ----------
+
+let allocTargetCPO = null;
+let allocShipType = 'Forward';
+let allocMode = 'volume'; // 'volume' | 'percentage'
+let allocSelected = new Set();     // selected partner names
+let allocData = {};                // partner -> { cap, currentVolume, currentPct, cost, costSource, costOverridden, costLoading }
+let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode
+const allocCostCache = new Map();  // key: partner|volume|shipmentType -> {rate, source}
+
+function allocDefaultRow(){
+  // currentVolume/currentPct start as null (not 0) so a freshly-added
+  // partner's input field renders empty — the user can type straight
+  // into it instead of backspacing a literal "0" first.
+  return { cap: 100, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
+}
+
+function renderAllocPartnerChips(){
+  const panel = document.getElementById('alloc-partner-dd-panel');
+  const label = document.getElementById('alloc-partner-dd-label');
+
+  panel.innerHTML = '';
+  allPartners.forEach(p => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; font-size:13px;';
+    row.addEventListener('mouseenter', () => row.style.background = 'var(--panel-2)');
+    row.addEventListener('mouseleave', () => row.style.background = 'transparent');
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = allocSelected.has(p);
+    cb.addEventListener('change', () => {
+      if (cb.checked){
+        allocSelected.add(p);
+        allocData[p] = allocDefaultRow();
+        fetchApplicableCost(p); // volume is 0 initially; fetch will no-op until a volume exists
+      } else {
+        allocSelected.delete(p);
+        delete allocData[p];
+      }
+      renderAllocPartnerChips();
+      syncAllocTotals();
+      renderAllocTable();
+    });
+
+    const span = document.createElement('span');
+    span.textContent = p;
+
+    row.appendChild(cb);
+    row.appendChild(span);
+    panel.appendChild(row);
+  });
+
+  label.textContent = allocSelected.size
+    ? (allocSelected.size + ' partner' + (allocSelected.size > 1 ? 's' : '') + ' selected')
+    : 'Select partners…';
+}
+
+document.getElementById('alloc-partner-dd-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById('alloc-partner-dd-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('alloc-partner-dd-panel');
+  const btn = document.getElementById('alloc-partner-dd-btn');
+  if (panel.style.display === 'block' && !panel.contains(e.target) && e.target !== btn){
+    panel.style.display = 'none';
+  }
+});
+
+/** Total volume basis. Volume mode: sum of entered Current Volumes.
+ * Percentage mode: the real total Forward/Reverse orders from the most
+ * recently loaded dashboard (for the currently active filters) — this
+ * is the "current/recent total allocation" the spec calls for, without
+ * adding a separate Total Volume input. */
+function allocTotalVolume(){
+  if (allocMode === 'volume'){
+    return Object.values(allocData).reduce((s,r) => s + (Number(r.currentVolume)||0), 0);
+  }
+  if (lastDashboardData && lastDashboardData.kpis){
+    // 'All' prices the same Forward order set under a combined Forward+RTO
+    // cost assumption — it shares the Forward volume basis, not Reverse.
+    return allocShipType === 'Reverse' ? (lastDashboardData.kpis.reverseOrders||0) : (lastDashboardData.kpis.forwardOrders||0);
+  }
+  return 0;
+}
+
+/** Keeps Current Volume/% mathematically linked to whichever is the input mode. */
+function syncAllocTotals(){
+  const total = allocTotalVolume();
+  Object.keys(allocData).forEach(p => {
+    const row = allocData[p];
+    if (allocMode === 'volume'){
+      row.currentPct = total > 0 ? (row.currentVolume / total) * 100 : 0;
+    } else {
+      row.currentVolume = total > 0 ? (row.currentPct / 100) * total : 0;
+    }
+  });
+}
+
+async function fetchApplicableCost(partner){
+  const row = allocData[partner];
+  if (!row) return;
+  const volume = Math.round(row.currentVolume) || 0;
+  if (volume <= 0) return; // nothing to price yet
+
+  const cacheKey = [partner, volume, allocShipType].join('|');
+  if (allocCostCache.has(cacheKey)){
+    const cached = allocCostCache.get(cacheKey);
+    row.cost = cached.rate; row.costSource = cached.source; row.costOverridden = false;
+    renderAllocTable();
+    return;
+  }
+
+  row.costLoading = true;
+  renderAllocTable();
+  try{
+    const result = await apiGet('simulate', { partner, volume, shipmentType: allocShipType });
+    allocCostCache.set(cacheKey, { rate: result.rate, source: result.source });
+    row.cost = result.rate; row.costSource = result.source; row.costOverridden = false;
+  } catch(err){
+    row.cost = 0; row.costSource = 'Error: ' + err.message;
+  }
+  row.costLoading = false;
+  renderAllocTable();
+}
+
+/** Recomputes the ideal allocation and re-renders. Call after any input change. */
+function runAllocOptimizer(){
+  const partners = allocSelected.size ? [...allocSelected] : [];
+  const totalVolume = allocTotalVolume();
+
+  const banner = document.getElementById('alloc-feasibility-banner');
+  const summary = document.getElementById('alloc-summary');
+
+  if (!partners.length || totalVolume <= 0 || allocTargetCPO == null || isNaN(allocTargetCPO)){
+    banner.style.display = 'none';
+    summary.innerHTML = '';
+    renderAllocTable();
+    return;
+  }
+
+  const optInput = partners
+    .filter(p => allocData[p] && allocData[p].cost != null)
+    .map(p => ({ key: p, cost: allocData[p].cost, capVol: (allocData[p].cap/100) * totalVolume }));
+
+  if (optInput.length < partners.length){
+    // still waiting on one or more Applicable Cost fetches
+    banner.style.display = 'block';
+    banner.style.background = 'rgba(184,121,15,0.12)';
+    banner.style.color = 'var(--warn)';
+    banner.innerHTML = 'Waiting for Applicable Cost to load for all selected partners…';
+    summary.innerHTML = '';
+    renderAllocTable();
+    return;
+  }
+
+  const result = computeIdealAllocation(optInput, totalVolume, allocTargetCPO);
+  partners.forEach(p => {
+    const vol = result.volumes[p] || 0;
+    allocData[p].idealVolume = vol;
+    allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
+  });
+
+  // Current/existing blended CPO, using the SAME fixed Applicable Cost values
+  const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * allocData[p].cost, 0);
+  const currentCPO = totalVolume > 0 ? currentCost / totalVolume : 0;
+
+  banner.style.display = 'block';
+  if (result.insufficientCapacity){
+    banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
+    banner.innerHTML = '<strong>Not enough partner capacity.</strong> ' + result.reason;
+  } else if (result.achievable){
+    banner.style.background = 'rgba(31,157,92,0.10)'; banner.style.color = 'var(--good)';
+    banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPO.';
+  } else {
+    banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
+    banner.innerHTML = '<strong>Target CPO Not Achievable Under Current Caps.</strong> Closest achievable: ' +
+      fmtRate(result.achievedCPO) + ' (Target ' + fmtRate(allocTargetCPO) + ', diff ' + fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)) + '). ' + (result.reason || '');
+  }
+
+  summary.innerHTML =
+    '<div class="kpi-card"><div class="label">Target CPO</div><div class="value">'+fmtRate(allocTargetCPO)+'</div></div>' +
+    '<div class="kpi-card"><div class="label">Current/Existing CPO</div><div class="value">'+fmtRate(currentCPO)+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Ideal/Resulting CPO</div><div class="value">'+fmtRate(result.achievedCPO)+'</div></div>' +
+    '<div class="kpi-card highlight"><div class="label">Difference from Target</div><div class="value">'+fmtRate(Math.abs(result.achievedCPO - allocTargetCPO))+'</div></div>';
+
+  renderAllocTable();
+}
+
+function renderAllocTable(){
+  const tbody = document.querySelector('#tbl-alloc tbody');
+  const tfoot = document.querySelector('#tbl-alloc tfoot');
+  tbody.innerHTML = ''; tfoot.innerHTML = '';
+
+  const partners = [...allocSelected];
+  if (!partners.length){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Select one or more delivery partners above to begin</td></tr>';
+    return;
+  }
+
+  const total = allocTotalVolume();
+
+  partners.forEach(p => {
+    const row = allocData[p];
+    const capVol = (row.cap/100) * total;
+    const infeasible = (row.currentPct||0) > row.cap + 0.01;
+    const idealVol = row.idealVolume || 0;
+    const idealPct = row.idealPct || 0;
+    const allocatedCost = idealVol * (row.cost || 0);
+
+    const tr = document.createElement('tr');
+    if (infeasible) tr.style.background = 'rgba(201,55,44,0.06)';
+    tr.innerHTML =
+      '<td>'+p+'</td>' +
+      '<td><input class="alloc-input" data-partner="'+p+'" data-field="cap" type="number" min="0" max="100" step="0.01" value="'+row.cap+'" style="width:70px;"></td>' +
+      '<td>' + (allocMode==='volume'
+        ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
+        : fmtNum(row.currentVolume||0)) + '</td>' +
+      '<td>' + (allocMode==='percentage'
+        ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentPct" type="number" min="0" max="100" step="0.01" placeholder="0" value="'+(row.currentPct==null?'':row.currentPct.toFixed(2))+'" style="width:80px;">'
+        : (row.currentPct||0).toFixed(2)+'%') + '</td>' +
+      '<td>' + (row.costLoading
+        ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
+        : '<input class="alloc-input" data-partner="'+p+'" data-field="cost" type="number" min="0" step="0.01" value="'+(row.cost==null?'':row.cost)+'" title="'+(row.costSource||'').replace(/"/g,'&quot;')+'" style="width:80px;">') + '</td>' +
+      '<td>'+fmtNum(idealVol)+'</td>' +
+      '<td>'+idealPct.toFixed(2)+'%</td>' +
+      '<td>'+fmtMoney(allocatedCost)+'</td>' +
+      '<td><button class="icon-btn danger" data-remove-partner="'+p+'">✕</button></td>';
+    tbody.appendChild(tr);
+
+    if (infeasible){
+      const warnTr = document.createElement('tr');
+      warnTr.innerHTML = '<td colspan="9" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its Cap (' + row.cap + '%). This allocation is not feasible — reduce this input or raise the cap. ' +
+        '<button class="icon-btn" data-fix-partner="'+p+'" style="margin-left:8px;">Clamp to cap</button></td>';
+      tbody.appendChild(warnTr);
+    }
+  });
+
+  const totalCurrentPct = partners.reduce((s,p) => s + (allocData[p].currentPct||0), 0);
+  const totalIdealPct = partners.reduce((s,p) => s + (allocData[p].idealPct||0), 0);
+  const totalAllocatedCost = partners.reduce((s,p) => s + (allocData[p].idealVolume||0) * (allocData[p].cost||0), 0);
+  const tfootTr = document.createElement('tr');
+  tfootTr.style.fontWeight = '700';
+  tfootTr.innerHTML =
+    '<td>Total</td><td></td><td></td>' +
+    '<td>'+totalCurrentPct.toFixed(2)+'%</td>' +
+    '<td></td><td></td>' +
+    '<td>'+totalIdealPct.toFixed(2)+'%</td>' +
+    '<td>'+fmtMoney(totalAllocatedCost)+'</td><td></td>';
+  tfoot.appendChild(tfootTr);
+
+  tbody.querySelectorAll('.alloc-input').forEach(input => {
+    input.addEventListener('change', () => {
+      const p = input.dataset.partner, field = input.dataset.field;
+      const val = Number(input.value);
+      if (isNaN(val)) return;
+
+      if (field === 'cost'){
+        allocData[p].cost = val;
+        allocData[p].costOverridden = true;
+        runAllocOptimizer();
+        return;
+      }
+      if (field === 'cap'){
+        allocData[p].cap = Math.max(0, Math.min(100, val));
+        runAllocOptimizer();
+        return;
+      }
+      if (field === 'currentVolume'){
+        allocData[p].currentVolume = Math.max(0, val);
+        syncAllocTotals();
+        fetchApplicableCost(p).then(runAllocOptimizer);
+        runAllocOptimizer();
+        return;
+      }
+      if (field === 'currentPct'){
+        allocData[p].currentPct = Math.max(0, Math.min(100, val));
+        syncAllocTotals();
+        fetchApplicableCost(p).then(runAllocOptimizer);
+        runAllocOptimizer();
+        return;
+      }
+    });
+  });
+
+  tbody.querySelectorAll('button[data-remove-partner]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.removePartner;
+      allocSelected.delete(p);
+      delete allocData[p];
+      renderAllocPartnerChips();
+      syncAllocTotals();
+      runAllocOptimizer();
+    });
+  });
+
+  tbody.querySelectorAll('button[data-fix-partner]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.fixPartner;
+      const row = allocData[p];
+      if (allocMode === 'volume'){
+        row.currentVolume = (row.cap/100) * total;
+      } else {
+        row.currentPct = row.cap;
+      }
+      syncAllocTotals();
+      fetchApplicableCost(p).then(runAllocOptimizer);
+      runAllocOptimizer();
+    });
+  });
+}
 
 function renderAllDashboardData(data){
+  lastDashboardData = data;
   renderKpis(data.kpis || {});
   renderRowsTable('tbl-partner', data.byPartner, true);
   renderRowsTable('tbl-zone', data.byZone);
@@ -658,6 +1145,7 @@ function renderAllDashboardData(data){
   renderPartnerPieChart(data.byPartner);
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
+  if (allocMode === 'percentage') { syncAllocTotals(); runAllocOptimizer(); }
 }
 
 async function loadDashboard(){
@@ -681,130 +1169,47 @@ async function loadDashboard(){
   }
 }
 
-/** Resolved rate for a row under the CURRENT shipment type, or null if not yet fetched. */
-function resolvedRate(row){
-  if (row.overrides[currentSimType] != null) return row.overrides[currentSimType];
-  const cached = row.rates[currentSimType];
-  return cached ? cached.rate : null;
-}
+document.getElementById('alloc-target-cpo').addEventListener('change', (e) => {
+  const val = Number(e.target.value);
+  allocTargetCPO = e.target.value === '' ? null : val;
+  runAllocOptimizer();
+});
 
-function renderSimTable(){
-  const tbody = document.querySelector('#tbl-sim tbody');
-  tbody.innerHTML = '';
-
-  if (!simRows.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No rows added yet — pick a partner, enter a volume, and click Add</td></tr>';
-    renderSimSummary();
-    return;
-  }
-
-  simRows.forEach((row, i) => {
-    const rate = resolvedRate(row);
-    const cached = row.rates[currentSimType];
-    const tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td>'+row.partner+'</td>' +
-      '<td>'+fmtNum(row.volume)+'</td>' +
-      '<td>' + (rate == null
-        ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
-        : '<input class="sim-rate-input" data-idx="'+i+'" type="number" value="'+rate+'" step="0.01" title="'+((cached && cached.source) || '').replace(/"/g,'&quot;')+'">') +
-        '</td>' +
-      '<td>'+(rate == null ? '—' : fmtMoney(rate * row.volume))+'</td>' +
-      '<td><button class="icon-btn danger" data-remove="'+i+'">✕</button></td>';
-    tbody.appendChild(tr);
+document.querySelectorAll('#alloc-type-seg button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    allocShipType = btn.dataset.simtype;
+    document.querySelectorAll('#alloc-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    // Shipment type change invalidates fetched Applicable Cost for every
+    // selected partner (Forward vs Reverse rates differ) — refetch all,
+    // unless the user manually overrode a cost (their override stands
+    // until they change it themselves).
+    const partners = [...allocSelected];
+    await Promise.all(partners.map(p => {
+      if (allocData[p].costOverridden) return Promise.resolve();
+      allocData[p].cost = null;
+      return fetchApplicableCost(p);
+    }));
+    if (allocMode === 'percentage') syncAllocTotals();
+    runAllocOptimizer();
   });
+});
 
-  tbody.querySelectorAll('.sim-rate-input').forEach(input => {
-    input.addEventListener('change', () => {
-      const idx = Number(input.dataset.idx);
-      const val = Number(input.value);
-      if (!isNaN(val)) { simRows[idx].overrides[currentSimType] = val; }
-      renderSimTable();
-    });
-  });
-  tbody.querySelectorAll('button[data-remove]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      simRows.splice(Number(btn.dataset.remove), 1);
-      renderSimTable();
-    });
-  });
+document.getElementById('alloc-mode-select').addEventListener('change', (e) => {
+  allocMode = e.target.value;
+  syncAllocTotals();
+  runAllocOptimizer();
+});
 
-  renderSimSummary();
-}
-
-function renderSimSummary(){
-  const grid = document.getElementById('sim-summary');
-  if (!simRows.length){
-    grid.innerHTML = '';
-    return;
-  }
-  // Only rows with a resolved rate for the current type count toward the
-  // totals — rows still loading are excluded until their rate arrives.
-  const resolvedRows = simRows.filter(r => resolvedRate(r) != null);
-  const totalOrders = resolvedRows.reduce((s,r) => s + r.volume, 0);
-  const totalCost = resolvedRows.reduce((s,r) => s + resolvedRate(r) * r.volume, 0);
-  const overallCPO = totalOrders ? (totalCost / totalOrders) : 0;
-  grid.innerHTML =
-    '<div class="kpi-card"><div class="label">Rows</div><div class="value">'+simRows.length+'</div></div>' +
-    '<div class="kpi-card"><div class="label">Total Orders</div><div class="value">'+fmtNum(totalOrders)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Total Cost Allocation</div><div class="value">'+fmtMoney(totalCost)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Overall Cost Per Order</div><div class="value">'+fmtRate(overallCPO)+'</div></div>';
-}
-
-/** Fetches (or reuses cached) rate for a partner/volume/type combo. */
-async function fetchSimRate(partner, volume, shipmentType){
-  const cacheKey = [partner, volume, shipmentType].join('|');
-  if (simRateCache.has(cacheKey)) return { value: simRateCache.get(cacheKey), fromCache: true };
-  const result = await apiGet('simulate', { partner, volume, shipmentType });
-  const val = { rate: result.rate, source: result.source };
-  simRateCache.set(cacheKey, val);
-  return { value: val, fromCache: false };
-}
-
-async function addSimRow(){
-  const partner = document.getElementById('s-partner').value;
-  const volume = Number(document.getElementById('s-volume').value) || 0;
-
-  if (!partner || !volume){
-    setStatus('Simulator: choose a partner and enter a volume', 'error');
-    return;
-  }
-
-  const row = { partner, volume, rates: {}, overrides: {} };
-  simRows.push(row);
-  renderSimTable();
-
-  setStatus('Simulating…', 'loading');
-  try{
-    const { value, fromCache } = await fetchSimRate(partner, volume, currentSimType);
-    row.rates[currentSimType] = value;
-    renderSimTable();
-    setStatus(fromCache ? 'Row added (from cache)' : 'Row added', fromCache ? 'cached' : undefined);
-  } catch(err){
-    setStatus('Simulation failed: ' + err.message, 'error');
-  }
-}
-
-/** Called whenever the Shipment Type toggle changes — recomputes every
- * row's rate for the newly-selected type (skipping rows that already
- * have a cached rate or a manual override for that type). */
-async function refreshSimRowsForCurrentType(){
-  const pending = simRows.filter(r => r.overrides[currentSimType] == null && !r.rates[currentSimType]);
-  renderSimTable(); // show loading state immediately for pending rows
-  if (!pending.length) return;
-
-  setStatus('Recalculating for ' + currentSimType + '…', 'loading');
-  await Promise.all(pending.map(async row => {
-    try{
-      const { value } = await fetchSimRate(row.partner, row.volume, currentSimType);
-      row.rates[currentSimType] = value;
-    } catch(err){
-      row.rates[currentSimType] = { rate: 0, source: 'Error: ' + err.message };
-    }
-  }));
-  renderSimTable();
-  setStatus('Updated for ' + currentSimType);
-}
+document.getElementById('btn-alloc-reset').addEventListener('click', () => {
+  allocSelected = new Set();
+  allocData = {};
+  allocTargetCPO = null;
+  document.getElementById('alloc-target-cpo').value = '';
+  renderAllocPartnerChips();
+  document.getElementById('alloc-feasibility-banner').style.display = 'none';
+  document.getElementById('alloc-summary').innerHTML = '';
+  renderAllocTable();
+});
 
 ['f-partner','f-zone','f-type','f-payment'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
@@ -820,20 +1225,6 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   document.getElementById('f-payment').value = 'All';
   setGranularity('day');
   loadDashboard();
-});
-
-document.getElementById('btn-add-sim').addEventListener('click', addSimRow);
-document.getElementById('btn-clear-all-sim').addEventListener('click', () => {
-  simRows = [];
-  renderSimTable();
-});
-
-document.querySelectorAll('#sim-type-seg button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentSimType = btn.dataset.simtype;
-    document.querySelectorAll('#sim-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
-    refreshSimRowsForCurrentType();
-  });
 });
 
 function setGranularity(g){
@@ -857,7 +1248,7 @@ window.addEventListener('resize', () => {
 
 (async function init(){
   setStatus('Loading filters…', 'loading');
-  renderSimTable();
+  renderAllocTable();
   try{
     await loadFilters();
     await loadDashboard();
