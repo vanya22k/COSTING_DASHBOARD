@@ -244,7 +244,7 @@
           <button id="btn-clear-all-sim" class="danger">Clear All</button>
         </div>
         <table id="tbl-sim">
-          <thead><tr><th>Delivery Partner</th><th>Cost Per Order</th><th>Total Cost Allocation</th><th>Order Volume</th><th></th></tr></thead>
+          <thead><tr><th>Delivery Partner</th><th>Order Volume</th><th>Cost Per Order</th><th>Total Cost Allocation</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
         <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cost Per Order is editable &mdash; click it to override the computed (slab/zone-based) value manually; Total Cost Allocation and the summary below update immediately.</div>
@@ -259,7 +259,7 @@
 /*************************************************************
  * CONFIG — point this at your Apps Script Web App /exec URL.
  *************************************************************/
-const API_URL = 'https://script.google.com/macros/s/AKfycbwad9n9D32tvBpT7-irpmWRExl2faRyBVYEYxWDyc8Lj6J3fWyYmRIBGdp0C1Vf-Dxbbg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwKk6M7CNMInkmf8iJ4oLAD6XHzBfIpJtmkAeLaBsohTHmWHlZX3Ok0TTKetczCVMUMZA/exec';
 
 const CUR = '₹';
 const BAR_COLORS = ['#4f8cff','#7c5cff','#33c07a','#e6a83c','#e6584c','#3ec9d6','#c76bd6','#8fae4f'];
@@ -267,10 +267,6 @@ const BAR_COLORS = ['#4f8cff','#7c5cff','#33c07a','#e6a83c','#e6584c','#3ec9d6',
 let partnerPricingType = {};
 let currentGranularity = 'day';
 
-// Session-only cache: same filter combo returns instantly without hitting
-// the Apps Script API again. Cleared automatically on page reload (this is
-// an in-memory Map, not localStorage) so stale data never survives a fresh
-// visit, but repeated filter toggling within a session is instant.
 const dashboardCache = new Map();
 
 function fmtMoney(n){
@@ -371,9 +367,6 @@ function renderRowsTable(tableId, rows, highlightBestRow){
   }
   rows.forEach((r, i) => {
     const tr = document.createElement('tr');
-    // r[5] is CPOL; highlight only the first row, and only if it has a
-    // genuinely valid CPOL (>0) — matches the backend's sort rule that
-    // sinks invalid (netOrders<=0) rows to the bottom.
     const isBest = highlightBestRow && i === 0 && r[5] > 0;
     if (isBest) {
       tr.style.background = 'rgba(31,157,92,0.10)';
@@ -536,18 +529,15 @@ function roundRect(ctx, x, y, w, h, r){
 
 function renderPartnerComparison(byPartner){
   const items = (byPartner || [])
-    .map(r => [r[0], r[4]]) // r[4] = Total Cost
+    .map(r => [r[0], r[4]])
     .sort((a,b) => b[1]-a[1]);
   drawBarChart('chart-partner-cost', items, fmtMoney);
 }
 
 function renderPartnerCpolComparison(byPartner){
-  // byPartner already arrives sorted lowest-CPOL-first from the backend
-  // (toRows(sortByCpol=true)); only keep partners with a valid CPOL
-  // (netOrders > 0), same rule the backend uses to sink invalid rows.
   const items = (byPartner || [])
     .filter(r => r[5] > 0)
-    .map(r => [r[0], r[5]]); // r[5] = CPOL
+    .map(r => [r[0], r[5]]);
   drawBarChart('chart-partner-cpol', items, fmtMoney, (item, i) => i === 0 ? '#33c07a' : BAR_COLORS[(i) % BAR_COLORS.length]);
 }
 
@@ -594,20 +584,15 @@ function drawPieChart(canvasId, items, legendId){
 
 function renderPartnerPieChart(byPartner){
   const items = (byPartner || [])
-    .map(r => [r[0], r[4]]) // r[4] = Total Cost
+    .map(r => [r[0], r[4]])
     .filter(r => r[1] > 0)
     .sort((a,b) => b[1]-a[1]);
   drawPieChart('chart-partner-pie', items, 'pie-legend');
 }
 
-/* ---------- Simulator: no Zone input (auto-resolved backend-side for
-   zone-priced partners), per-row Add, cached, live total. Headline
-   metric label changes with Shipment Type: Forward -> "Cost Per
-   Shipment", Reverse -> "CPOL", All -> "Total Cost". ---------- */
-
 let currentSimType = 'Forward';
-let simRows = [];           // [{partner, volume, rate, source, label, edited}]
-const simRateCache = new Map(); // key: partner|volume|shipmentType -> {rate, source, label}
+let simRows = [];
+const simRateCache = new Map();
 
 const SIM_TYPE_NOTES = {
   Forward: 'Forward shipping cost only. Headline metric: Cost Per Shipment.',
@@ -618,8 +603,6 @@ const SIM_TYPE_NOTES = {
 function updateSimTypeNote(){
   document.getElementById('sim-type-note').textContent = SIM_TYPE_NOTES[currentSimType] || '';
 }
-
-/* ---------- Dashboard load (with session cache) ---------- */
 
 function renderAllDashboardData(data){
   renderKpis(data.kpis || {});
@@ -661,8 +644,6 @@ async function loadDashboard(){
   }
 }
 
-/* ---------- Cost Simulator (per-row Add, cached, live total) ---------- */
-
 function renderSimTable(){
   const tbody = document.querySelector('#tbl-sim tbody');
   tbody.innerHTML = '';
@@ -677,9 +658,9 @@ function renderSimTable(){
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td class="partner-cell">'+row.partner+'<span class="sub">'+row.shipmentType+'</span></td>' +
+      '<td>'+fmtNum(row.volume)+'</td>' +
       '<td><input class="sim-rate-input" data-idx="'+i+'" type="number" value="'+row.rate+'" step="0.01" title="'+(row.source||'').replace(/"/g,'&quot;')+'"><span class="badge-pill">'+row.label+'</span></td>' +
       '<td>'+fmtMoney(row.rate * row.volume)+'</td>' +
-      '<td>'+fmtNum(row.volume)+'</td>' +
       '<td><button class="icon-btn danger" data-remove="'+i+'">✕</button></td>';
     tbody.appendChild(tr);
   });
@@ -708,7 +689,6 @@ function renderSimSummary(){
     grid.innerHTML = '';
     return;
   }
-  // Auto-updates the moment simRows changes — no separate "calculate" step.
   const totalOrders = simRows.reduce((s,r) => s + r.volume, 0);
   const totalCost = simRows.reduce((s,r) => s + r.rate * r.volume, 0);
   const overallCPO = totalOrders ? (totalCost / totalOrders) : 0;
@@ -739,8 +719,6 @@ async function addSimRow(){
 
   setStatus('Simulating…', 'loading');
   try{
-    // No zone param — the backend auto-resolves zone-priced partners
-    // (Shadowfax, Bluedart) from their historical zone mix.
     const result = await apiGet('simulate', { partner, volume, shipmentType: currentSimType });
     simRateCache.set(cacheKey, { rate: result.rate, source: result.source, label: result.label });
     simRows.push({ partner, volume, rate: result.rate, source: result.source, label: result.label, shipmentType: currentSimType, edited: false });
@@ -750,8 +728,6 @@ async function addSimRow(){
     setStatus('Simulation failed: ' + err.message, 'error');
   }
 }
-
-/* ---------- Wire up: auto-apply filters, no Apply button ---------- */
 
 ['f-partner','f-zone','f-type','f-payment'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
