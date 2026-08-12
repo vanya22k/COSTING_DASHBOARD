@@ -263,7 +263,7 @@
           <tbody></tbody>
           <tfoot></tfoot>
         </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Current Volume/% represents what's actually been allocated recently. Applicable Cost is auto-calculated from the Rate Card at your Current Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% is calculated to get as close to the Target CPO as possible without unnecessarily over-using cheaper partners, respecting each partner's Cap %.</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cap % is auto-calculated from each partner's historical order share (not user-editable). Current Volume/% represents what's actually been allocated recently. Applicable Cost is auto-calculated from the Rate Card at your Current Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% is calculated to get as close to the Target CPO as possible without unnecessarily over-using cheaper partners, respecting each partner's auto-Cap %.</div>
       </div>
 
       <div id="alloc-feasibility-banner" style="display:none; margin-top:16px; padding:12px 16px; border-radius:8px; font-size:13px;"></div>
@@ -826,14 +826,41 @@ let allocShipType = 'Forward';
 let allocMode = 'volume'; // 'volume' | 'percentage'
 let allocSelected = new Set();     // selected partner names
 let allocData = {};                // partner -> { cap, currentVolume, currentPct, cost, costSource, costOverridden, costLoading }
-let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode
+let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode AND as the source of auto-Cap %
 const allocCostCache = new Map();  // key: partner|volume|shipmentType -> {rate, source}
 
 function allocDefaultRow(){
   // currentVolume/currentPct start as null (not 0) so a freshly-added
   // partner's input field renders empty — the user can type straight
   // into it instead of backspacing a literal "0" first.
-  return { cap: 100, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
+  // cap starts null; computeAutoCaps() fills it in — Cap is no longer a
+  // user-typed input, it's derived from historical order share.
+  return { cap: null, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
+}
+
+/** Auto-derives each selected partner's Cap % from their historical
+ * order share (out of the currently-loaded dashboard's byPartner data,
+ * renormalized across just the SELECTED partners so caps sum to 100%
+ * among them). Falls back to an equal split if no dashboard data is
+ * loaded yet, or a selected partner has zero historical orders. */
+function computeAutoCaps(){
+  const partners = [...allocSelected];
+  if (!partners.length) return;
+
+  const historicalOrders = {};
+  if (lastDashboardData && lastDashboardData.byPartner){
+    lastDashboardData.byPartner.forEach(r => { historicalOrders[r[0]] = r[1]; }); // r[0]=partner, r[1]=orders
+  }
+  const totalHistorical = partners.reduce((s,p) => s + (historicalOrders[p]||0), 0);
+
+  if (totalHistorical <= 0){
+    const equal = 100 / partners.length;
+    partners.forEach(p => { if (allocData[p]) allocData[p].cap = equal; });
+    return;
+  }
+  partners.forEach(p => {
+    if (allocData[p]) allocData[p].cap = ((historicalOrders[p]||0) / totalHistorical) * 100;
+  });
 }
 
 function renderAllocPartnerChips(){
@@ -859,9 +886,10 @@ function renderAllocPartnerChips(){
         allocSelected.delete(p);
         delete allocData[p];
       }
+      computeAutoCaps();
       renderAllocPartnerChips();
       syncAllocTotals();
-      renderAllocTable();
+      runAllocOptimizer();
     });
 
     const span = document.createElement('span');
@@ -1025,8 +1053,9 @@ function renderAllocTable(){
 
   partners.forEach(p => {
     const row = allocData[p];
-    const capVol = (row.cap/100) * total;
-    const infeasible = (row.currentPct||0) > row.cap + 0.01;
+    const cap = row.cap || 0;
+    const capVol = (cap/100) * total;
+    const infeasible = (row.currentPct||0) > cap + 0.01;
     const idealVol = row.idealVolume || 0;
     const idealPct = row.idealPct || 0;
     const allocatedCost = idealVol * (row.cost || 0);
@@ -1035,7 +1064,7 @@ function renderAllocTable(){
     if (infeasible) tr.style.background = 'rgba(201,55,44,0.06)';
     tr.innerHTML =
       '<td>'+p+'</td>' +
-      '<td><input class="alloc-input" data-partner="'+p+'" data-field="cap" type="number" min="0" max="100" step="0.01" value="'+row.cap+'" style="width:70px;"></td>' +
+      '<td title="Auto-calculated from this partner\'s historical order share — not editable">'+cap.toFixed(2)+'%</td>' +
       '<td>' + (allocMode==='volume'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
         : fmtNum(row.currentVolume||0)) + '</td>' +
@@ -1053,7 +1082,7 @@ function renderAllocTable(){
 
     if (infeasible){
       const warnTr = document.createElement('tr');
-      warnTr.innerHTML = '<td colspan="9" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its Cap (' + row.cap + '%). This allocation is not feasible — reduce this input or raise the cap. ' +
+      warnTr.innerHTML = '<td colspan="9" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its historical Cap (' + cap.toFixed(2) + '%). This allocation is not feasible — reduce this input. ' +
         '<button class="icon-btn" data-fix-partner="'+p+'" style="margin-left:8px;">Clamp to cap</button></td>';
       tbody.appendChild(warnTr);
     }
@@ -1084,11 +1113,6 @@ function renderAllocTable(){
         runAllocOptimizer();
         return;
       }
-      if (field === 'cap'){
-        allocData[p].cap = Math.max(0, Math.min(100, val));
-        runAllocOptimizer();
-        return;
-      }
       if (field === 'currentVolume'){
         allocData[p].currentVolume = Math.max(0, val);
         syncAllocTotals();
@@ -1111,6 +1135,7 @@ function renderAllocTable(){
       const p = btn.dataset.removePartner;
       allocSelected.delete(p);
       delete allocData[p];
+      computeAutoCaps();
       renderAllocPartnerChips();
       syncAllocTotals();
       runAllocOptimizer();
@@ -1145,7 +1170,8 @@ function renderAllDashboardData(data){
   renderPartnerPieChart(data.byPartner);
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
-  if (allocMode === 'percentage') { syncAllocTotals(); runAllocOptimizer(); }
+  computeAutoCaps();
+  if (allocSelected.size) { syncAllocTotals(); runAllocOptimizer(); }
 }
 
 async function loadDashboard(){
