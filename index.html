@@ -6,9 +6,21 @@
 <title>3PL Cost Dashboard</title>
 <style>
   :root{
-    --bg:#f4f6fa; --panel:#ffffff; --panel-2:#f1f4f9; --border:#dde3ee;
-    --text:#1a2233; --muted:#68728a; --accent:#3d6fd9; --accent-2:#7c5cff;
+    --bg:#f3f5fa; --panel:#ffffff; --panel-2:#f0f3f9; --border:#dbe1ee;
+    --text:#161d2e; --muted:#657089; --accent:#3d6fd9; --accent-2:#7c5cff;
     --good:#1f9d5c; --warn:#b8790f; --bad:#c9372c;
+
+    /* Semantic tints — used for banners/highlights instead of ad-hoc rgba() */
+    --accent-tint:rgba(61,111,217,0.10); --accent-tint-strong:rgba(124,92,255,0.10);
+    --good-tint:rgba(31,157,92,0.10); --good-tint-strong:rgba(31,157,92,0.16);
+    --warn-tint:rgba(184,121,15,0.12);
+    --bad-tint:rgba(201,55,44,0.08); --bad-tint-strong:rgba(201,55,44,0.10); --bad-border-tint:rgba(201,55,44,0.25); --bad-border:rgba(201,55,44,0.35);
+
+    /* Spacing scale — consistent multiples used across the layout */
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+    --space-5:24px; --space-6:32px; --space-7:48px;
+
+    --accent-glow:rgba(61,111,217,0.35);
     --radius:12px; --shadow:0 4px 16px rgba(20,30,60,0.08);
     font-size:15px;
   }
@@ -16,13 +28,13 @@
   body{
     margin:0; background:var(--bg);
     color:var(--text); font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-    padding:24px 28px 60px;
+    padding:var(--space-6) var(--space-6) var(--space-7);
   }
   h1{font-size:22px; margin:0 0 2px; letter-spacing:.3px;}
-  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px;}
-  .topbar{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:20px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:var(--space-5);}
+  .topbar{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:var(--space-4); margin-bottom:var(--space-5);}
 
-  .filters{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+  .filters{display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:flex-end;}
   .field{display:flex; flex-direction:column; gap:4px;}
   .field label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
   select, input[type=date], input[type=number]{
@@ -33,12 +45,12 @@
   button{
     background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border:none;
     padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
-    box-shadow:0 4px 14px rgba(79,140,255,0.35); transition:transform .1s ease, opacity .15s ease;
+    box-shadow:0 4px 14px var(--accent-glow); transition:transform .1s ease, opacity .15s ease;
   }
   button:hover{opacity:.92;}
   button:active{transform:scale(.97);}
   button.secondary{background:var(--panel-2); box-shadow:none; border:1px solid var(--border); color:var(--text);}
-  button.danger{background:var(--panel-2); box-shadow:none; border:1px solid rgba(230,88,76,0.4); color:var(--bad);}
+  button.danger{background:var(--panel-2); box-shadow:none; border:1px solid var(--bad-border); color:var(--bad);}
   button.icon-btn{padding:4px 9px; font-size:12px; border-radius:6px;}
 
   .seg{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;}
@@ -49,28 +61,28 @@
   .seg button + button{border-left:1px solid var(--border);}
   .seg button.active{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff;}
 
-  #status{font-size:12px; color:var(--muted); margin-bottom:14px; min-height:16px;}
+  #status{font-size:12px; color:var(--muted); margin-bottom:var(--space-4); min-height:16px;}
   #status.error{color:var(--bad);}
   #status.loading{color:var(--warn);}
   #status.cached{color:var(--good);}
 
-  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:24px;}
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--space-3); margin-bottom:var(--space-5);}
   .kpi-card{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    padding:16px; box-shadow:var(--shadow);
+    padding:var(--space-4); box-shadow:var(--shadow);
   }
-  .kpi-card .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px;}
+  .kpi-card .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:var(--space-2);}
   .kpi-card .value{font-size:22px; font-weight:700;}
-  .kpi-card.highlight{border-color:var(--accent); background:linear-gradient(135deg,rgba(79,140,255,0.12),rgba(124,92,255,0.08));}
+  .kpi-card.highlight{border-color:var(--accent); background:linear-gradient(135deg,var(--accent-tint),var(--accent-tint-strong));}
 
-  .panels{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
+  .panels{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4); margin-bottom:0;}
   @media(max-width:900px){.panels{grid-template-columns:1fr;}}
 
   .panel{
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px; box-shadow:var(--shadow);
+    padding:var(--space-4); box-shadow:var(--shadow);
   }
-  .panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4); flex-wrap:wrap; gap:var(--space-3);}
   .panel h2{font-size:14px; margin:0; color:var(--text); display:flex; align-items:center; gap:8px;}
   .panel h2::before{content:''; width:4px; height:14px; background:var(--accent); border-radius:2px; display:inline-block;}
 
@@ -79,7 +91,7 @@
   th:first-child, td:first-child{text-align:left;}
   th{color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
   tbody tr:hover{background:rgba(20,30,60,0.03);}
-  .empty-row td{text-align:center; color:var(--muted); padding:20px;}
+  .empty-row td{text-align:center; color:var(--muted); padding:var(--space-5);}
 
   .full{grid-column:1 / -1;}
 
@@ -87,18 +99,38 @@
   .chart-line canvas{height:200px;}
   .chart-bar canvas{height:auto;}
 
-  .sim-grid{display:grid; grid-template-columns:repeat(3,1fr) auto; gap:10px; align-items:flex-end;}
+  .sim-grid{display:grid; grid-template-columns:repeat(3,1fr) auto; gap:var(--space-3); align-items:flex-end;}
   @media(max-width:900px){.sim-grid{grid-template-columns:repeat(2,1fr);}}
   .sim-table-wrap{margin-top:20px;}
   #tbl-sim td.sim-source{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); text-align:left;}
   .sim-rate-input{width:100px; text-align:right;}
   .badge-pill{
     display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    padding:2px 7px; border-radius:999px; background:rgba(79,140,255,0.12); color:var(--accent); margin-left:6px;
+    padding:2px 7px; border-radius:999px; background:var(--accent-tint); color:var(--accent); margin-left:6px;
   }
   .partner-cell .sub{display:block; font-size:11px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; margin-top:2px;}
 
-  .footer-note{color:var(--muted); font-size:11px; margin-top:30px; text-align:center;}
+  .footer-note{color:var(--muted); font-size:11px; margin-top:var(--space-6); text-align:center;}
+
+  .section-block{margin-top:var(--space-7);}
+  .section-block:first-of-type{margin-top:var(--space-6);}
+  .section-eyebrow{
+    display:flex; align-items:center; gap:var(--space-3);
+    margin-bottom:var(--space-4);
+  }
+  .section-eyebrow .num{
+    font-size:11px; font-weight:700; color:var(--accent);
+    background:var(--accent-tint); border-radius:999px;
+    width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .section-eyebrow h2{
+    font-size:13px; margin:0; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--muted); font-weight:700;
+  }
+  .section-eyebrow::after{
+    content:''; flex:1; height:1px; background:var(--border);
+  }
 </style>
 </head>
 <body>
@@ -148,9 +180,14 @@
 
   <div id="status"></div>
 
-  <div class="kpi-grid" id="kpi-grid"></div>
+  <div class="section-block" id="section-overview">
+    <div class="section-eyebrow"><span class="num">1</span><h2>Overview</h2></div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+  </div>
 
-  <div class="panels">
+  <div class="section-block" id="section-breakdown">
+    <div class="section-eyebrow"><span class="num">2</span><h2>Cost Breakdown</h2></div>
+    <div class="panels">
     <div class="panel">
       <h2>Partner-wise <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(sorted by lowest CPOL first)</span></h2>
       <table id="tbl-partner">
@@ -170,6 +207,12 @@
       <h2>Partner &times; Zone (Total Cost)</h2>
       <table id="tbl-matrix"><thead></thead><tbody></tbody></table>
     </div>
+    </div>
+  </div>
+
+  <div class="section-block" id="section-trends">
+    <div class="section-eyebrow"><span class="num">3</span><h2>Trends &amp; Comparisons</h2></div>
+    <div class="panels">
 
     <div class="panel full">
       <div class="panel-head">
@@ -204,10 +247,16 @@
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Cost per delivered order, sorted lowest first — lowest bar is the cheapest partner to route more orders to right now</div>
       <div class="chart-bar"><canvas id="chart-partner-cpol"></canvas></div>
     </div>
+    </div>
+  </div>
+
+  <div class="section-block" id="section-simulator">
+    <div class="section-eyebrow"><span class="num">4</span><h2>Cost Simulator</h2></div>
+    <div class="panels">
 
     <div class="panel full">
       <div class="panel-head">
-        <h2>Cost Simulator — Target CPO Allocation Optimizer</h2>
+        <h2>Target CPO Allocation Optimizer</h2>
         <div class="field" style="align-items:flex-end;">
           <label>Shipment Type</label>
           <div class="seg" id="alloc-type-seg">
@@ -267,9 +316,12 @@
         <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cap % is auto-calculated from each partner's historical order share (not user-editable). Current Volume/% represents what's actually been allocated recently. Applicable Cost is auto-calculated from the Rate Card at your Current Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% is calculated to get as close to the Target CPO as possible without unnecessarily over-using cheaper partners, respecting each partner's auto-Cap %.</div>
       </div>
 
+      <div id="alloc-input-warnings" style="display:none; margin-top:14px; padding:12px 16px; border-radius:8px; font-size:12px; background:var(--bad-tint); border:1px solid var(--bad-border-tint); color:var(--bad);"></div>
+
       <div id="alloc-feasibility-banner" style="display:none; margin-top:16px; padding:12px 16px; border-radius:8px; font-size:13px;"></div>
 
       <div class="kpi-grid" id="alloc-summary" style="margin-top:16px;"></div>
+    </div>
     </div>
   </div>
 
@@ -404,7 +456,7 @@ function renderRowsTable(tableId, rows, highlightBestRow){
     const tr = document.createElement('tr');
     const isBest = highlightBestRow && i === 0 && r[5] > 0;
     if (isBest) {
-      tr.style.background = 'rgba(31,157,92,0.10)';
+      tr.style.background = 'var(--good-tint)';
       tr.style.borderLeft = '3px solid var(--good)';
     }
     tr.innerHTML =
@@ -1012,7 +1064,7 @@ function runAllocOptimizer(){
 
   if (!optInput.length){
     banner.style.display = 'block';
-    banner.style.background = 'rgba(184,121,15,0.12)';
+    banner.style.background = 'var(--warn-tint)';
     banner.style.color = 'var(--warn)';
     banner.innerHTML = 'Waiting for Applicable Cost to load…';
     summary.innerHTML = '';
@@ -1037,13 +1089,13 @@ function runAllocOptimizer(){
   banner.style.display = 'block';
   const pendingNote = pendingCount > 0 ? ' <em>(' + pendingCount + ' partner' + (pendingCount>1?'s':'') + ' still loading Applicable Cost — will join automatically.)</em>' : '';
   if (result.insufficientCapacity){
-    banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
+    banner.style.background = 'var(--bad-tint-strong)'; banner.style.color = 'var(--bad)';
     banner.innerHTML = '<strong>Not enough partner capacity.</strong> ' + result.reason + pendingNote;
   } else if (result.achievable){
-    banner.style.background = 'rgba(31,157,92,0.10)'; banner.style.color = 'var(--good)';
+    banner.style.background = 'var(--good-tint)'; banner.style.color = 'var(--good)';
     banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPO.' + pendingNote;
   } else {
-    banner.style.background = 'rgba(201,55,44,0.10)'; banner.style.color = 'var(--bad)';
+    banner.style.background = 'var(--bad-tint-strong)'; banner.style.color = 'var(--bad)';
     banner.innerHTML = '<strong>Target CPO Not Achievable Under Current Caps.</strong> Closest achievable: ' +
       fmtRate(result.achievedCPO) + ' (Target ' + fmtRate(allocTargetCPO) + ', diff ' + fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)) + '). ' + (result.reason || '') + pendingNote;
   }
@@ -1069,21 +1121,23 @@ function renderAllocTable(){
   }
 
   const total = allocTotalVolume();
+  const infeasiblePartners = [];
 
   partners.forEach(p => {
     const row = allocData[p];
     const cap = row.cap || 0;
     const capVol = (cap/100) * total;
     const infeasible = (row.currentPct||0) > cap + 0.01;
+    if (infeasible) infeasiblePartners.push({ partner: p, currentPct: row.currentPct||0, cap });
     const idealVol = row.idealVolume || 0;
     const idealPct = row.idealPct || 0;
     const currentAllocatedCost = (row.currentVolume||0) * (row.cost || 0);
     const idealAllocatedCost = idealVol * (row.cost || 0);
 
     const tr = document.createElement('tr');
-    if (infeasible) tr.style.background = 'rgba(201,55,44,0.06)';
+    if (infeasible) tr.style.background = 'var(--bad-tint)';
     tr.innerHTML =
-      '<td>'+p+'</td>' +
+      '<td>'+p+(infeasible ? ' <span title="Current allocation exceeds this partner\'s Cap" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
       '<td title="Auto-calculated from this partner\'s historical order share — not editable">'+cap.toFixed(2)+'%</td>' +
       '<td>' + (allocMode==='volume'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
@@ -1100,13 +1154,35 @@ function renderAllocTable(){
       '<td>'+fmtMoney(idealAllocatedCost)+'</td>' +
       '<td><button class="icon-btn danger" data-remove-partner="'+p+'">✕</button></td>';
     tbody.appendChild(tr);
+  });
 
-    if (infeasible){
-      const warnTr = document.createElement('tr');
-      warnTr.innerHTML = '<td colspan="10" style="color:var(--bad); font-size:11px; padding-top:0;">⚠ ' + p + ': Current allocation (' + (row.currentPct||0).toFixed(2) + '%) exceeds its historical Cap (' + cap.toFixed(2) + '%). This allocation is not feasible — reduce this input. ' +
-        '<button class="icon-btn" data-fix-partner="'+p+'" style="margin-left:8px;">Clamp to cap</button></td>';
-      tbody.appendChild(warnTr);
-    }
+  const warningsBox = document.getElementById('alloc-input-warnings');
+  if (infeasiblePartners.length){
+    warningsBox.style.display = 'block';
+    warningsBox.innerHTML = infeasiblePartners.map(w =>
+      '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;">' +
+        '<span>⚠ <strong>'+w.partner+'</strong>: Current allocation ('+w.currentPct.toFixed(2)+'%) exceeds its historical Cap ('+w.cap.toFixed(2)+'%). This allocation is not feasible.</span>' +
+        '<button class="icon-btn" data-fix-partner="'+w.partner+'">Clamp to cap</button>' +
+      '</div>'
+    ).join('<hr style="border:none; border-top:1px solid var(--bad-border-tint); margin:4px 0;">');
+  } else {
+    warningsBox.style.display = 'none';
+    warningsBox.innerHTML = '';
+  }
+
+  warningsBox.querySelectorAll('button[data-fix-partner]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.fixPartner;
+      const row = allocData[p];
+      if (allocMode === 'volume'){
+        row.currentVolume = (row.cap/100) * total;
+      } else {
+        row.currentPct = row.cap;
+      }
+      syncAllocTotals();
+      fetchApplicableCost(p).then(runAllocOptimizer);
+      runAllocOptimizer();
+    });
   });
 
   const totalCurrentPct = partners.reduce((s,p) => s + (allocData[p].currentPct||0), 0);
@@ -1159,21 +1235,6 @@ function renderAllocTable(){
       computeAutoCaps();
       renderAllocPartnerChips();
       syncAllocTotals();
-      runAllocOptimizer();
-    });
-  });
-
-  tbody.querySelectorAll('button[data-fix-partner]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.fixPartner;
-      const row = allocData[p];
-      if (allocMode === 'volume'){
-        row.currentVolume = (row.cap/100) * total;
-      } else {
-        row.currentPct = row.cap;
-      }
-      syncAllocTotals();
-      fetchApplicableCost(p).then(runAllocOptimizer);
       runAllocOptimizer();
     });
   });
