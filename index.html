@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3PL Cost Dashboard</title>
+<title>STARK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -117,6 +117,16 @@
   .kpi-card .value{font-size:24px; font-weight:800; letter-spacing:-.01em;}
   .kpi-card.highlight{border-color:var(--accent); background:linear-gradient(150deg,var(--accent-tint) 0%,var(--accent-tint-strong) 100%);}
 
+  .mini-stat{
+    display:flex; flex-direction:column; gap:2px;
+    background:linear-gradient(150deg, var(--panel) 50%, var(--mini-tint, var(--accent-tint)) 220%);
+    border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:8px 14px; min-width:130px;
+    border-left:3px solid var(--mini-accent, var(--accent));
+  }
+  .mini-stat .mini-label{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700;}
+  .mini-stat .mini-value{font-size:16px; font-weight:800; color:var(--mini-accent, var(--text));}
+
   .panels{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4); margin-bottom:0;}
   @media(max-width:900px){.panels{grid-template-columns:1fr;}}
 
@@ -183,7 +193,7 @@
 
   <div class="topbar">
     <div>
-      <h1>3PL COST DASHBOARD</h1>
+      <h1>STARK</h1>
       <div class="subtitle">
         Forward + Reverse logistics cost across partners
         <span style="display:inline-flex; align-items:center; gap:5px; margin-left:10px; padding:2px 9px; border-radius:999px; background:var(--good-tint); color:var(--good); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; vertical-align:middle;">
@@ -336,6 +346,20 @@
         <button id="btn-alloc-reset" class="secondary">Reset All</button>
       </div>
 
+      <div class="sim-grid" style="grid-template-columns:repeat(2,180px) 1fr; margin-top:12px;">
+        <div class="field">
+          <label>Min Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
+          <input type="number" id="alloc-min-threshold" min="0" max="100" step="0.01" value="2">
+        </div>
+        <div class="field">
+          <label>Max Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
+          <input type="number" id="alloc-max-threshold" min="0" max="100" step="0.01" value="45">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <div style="font-size:11px; color:var(--muted);">One common floor/ceiling for every selected partner &mdash; e.g. no partner goes below 2% or above 45%.</div>
+        </div>
+      </div>
+
       <div class="field" style="margin-top:14px; max-width:340px; position:relative;">
         <label>Delivery Partners</label>
         <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
@@ -346,32 +370,32 @@
       </div>
 
       <div class="sim-table-wrap" style="overflow-x:auto;">
-        <table id="tbl-alloc" style="min-width:920px;">
+        <table id="tbl-alloc" style="min-width:820px; border-radius:var(--radius-sm); overflow:hidden;">
           <thead>
             <tr>
               <th>Delivery Partner</th>
-              <th>Cap %</th>
-              <th>Current Volume</th>
-              <th>Current %</th>
-              <th>Total Allocated Cost</th>
+              <th>Previous Allocation %</th>
+              <th>Projected Volume</th>
+              <th>Projected %</th>
               <th>Applicable Cost</th>
               <th>Ideal Volume</th>
               <th>Ideal %</th>
-              <th>Ideal Allocated Cost</th>
               <th></th>
             </tr>
           </thead>
           <tbody></tbody>
           <tfoot></tfoot>
         </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Cap % is auto-calculated from each partner's historical order share (not user-editable). Current Volume/% represents what's actually been allocated recently. Applicable Cost is auto-calculated from the Rate Card at your Current Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% is calculated to get as close to the Target CPO as possible without unnecessarily over-using cheaper partners, respecting each partner's auto-Cap %.</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Previous Allocation % shows each partner's real historical order share (read-only, for reference). The Min/Max Threshold above applies the same floor and ceiling to every partner. Projected Volume/% is what you plan to allocate &mdash; editable, and validated to never total more than 100%. Applicable Cost is auto-calculated from the Rate Card at your Projected Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% guarantees the Min Threshold for every partner, then fills the rest to land as close to the Target CPO as possible.</div>
       </div>
 
-      <div id="alloc-input-warnings" style="display:none; margin-top:14px; padding:12px 16px; border-radius:8px; font-size:12px; background:var(--bad-tint); border:1px solid var(--bad-border-tint); color:var(--bad);"></div>
+      <div id="alloc-validation-warning" style="display:none; margin-top:14px; padding:12px 16px; border-radius:var(--radius-sm); font-size:12px; background:var(--bad-tint-strong); border:1px solid var(--bad-border); color:var(--bad); font-weight:600;"></div>
 
-      <div id="alloc-feasibility-banner" style="display:none; margin-top:16px; padding:12px 16px; border-radius:8px; font-size:13px;"></div>
+      <div id="alloc-input-warnings" style="display:none; margin-top:14px; padding:12px 16px; border-radius:var(--radius-sm); font-size:12px; background:var(--bad-tint); border:1px solid var(--bad-border-tint); color:var(--bad);"></div>
 
-      <div class="kpi-grid" id="alloc-summary" style="margin-top:16px;"></div>
+      <div id="alloc-feasibility-banner" style="display:none; margin-top:16px; padding:12px 16px; border-radius:var(--radius-sm); font-size:13px;"></div>
+
+      <div id="alloc-summary" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;"></div>
     </div>
     </div>
   </div>
@@ -826,16 +850,11 @@ function allocGreedyFill(sortedPartners, totalVolume){
   return { volumes, cost, placed, blendedCost: placed > ALLOC_EPS ? cost / placed : 0 };
 }
 
-/**
- * partners: [{ key, cost, capVol }]   (capVol = cap% * totalVolume, in volume units)
- * totalVolume: number — same total as Current allocation, just reshuffled
- * target: number — Target CPO
- *
- * Returns { volumes, achievedCPO, achievable, reason, insufficientCapacity }
- */
-function computeIdealAllocation(partners, totalVolume, target){
+/** Core: fills `partners` [{key,cost,capVol}] to hit `target` as closely
+ * as possible using minimal necessary cheap-partner capacity. */
+function computeIdealAllocationCore(partners, totalVolume, target){
   if (!partners.length || totalVolume <= ALLOC_EPS){
-    return { volumes: {}, achievedCPO: 0, achievable: false, reason: 'Add at least one partner with volume > 0.', insufficientCapacity: false };
+    return { volumes: {}, achievedCPO: 0, achievable: false, reason: null, insufficientCapacity: false };
   }
 
   const totalCap = partners.reduce((s,p) => s + p.capVol, 0);
@@ -843,35 +862,17 @@ function computeIdealAllocation(partners, totalVolume, target){
 
   if (totalCap < totalVolume - ALLOC_EPS){
     const filled = allocGreedyFill(sortedAsc, totalVolume);
-    return {
-      volumes: filled.volumes,
-      achievedCPO: filled.blendedCost,
-      achievable: false,
-      reason: 'Combined partner caps (' + fmtNum(totalCap) + ') are below the total volume (' + fmtNum(totalVolume) + ') — increase caps or add partners.',
-      insufficientCapacity: true
-    };
+    return { volumes: filled.volumes, achievedCPO: filled.blendedCost, achievable: false, reason: 'insufficient', insufficientCapacity: true };
   }
 
   const minFill = allocGreedyFill(sortedAsc, totalVolume);
   const maxFill = allocGreedyFill([...sortedAsc].reverse(), totalVolume);
 
   if (target <= minFill.blendedCost + ALLOC_EPS){
-    return {
-      volumes: minFill.volumes,
-      achievedCPO: minFill.blendedCost,
-      achievable: Math.abs(target - minFill.blendedCost) <= 0.01,
-      reason: target < minFill.blendedCost - 0.01 ? 'Target is below the cheapest achievable blend under current caps.' : null,
-      insufficientCapacity: false
-    };
+    return { volumes: minFill.volumes, achievedCPO: minFill.blendedCost, achievable: Math.abs(target - minFill.blendedCost) <= 0.01, reason: target < minFill.blendedCost - 0.01 ? 'below-min' : null, insufficientCapacity: false };
   }
   if (target >= maxFill.blendedCost - ALLOC_EPS){
-    return {
-      volumes: maxFill.volumes,
-      achievedCPO: maxFill.blendedCost,
-      achievable: Math.abs(target - maxFill.blendedCost) <= 0.01,
-      reason: target > maxFill.blendedCost + 0.01 ? 'Target is above the priciest achievable blend under current caps.' : null,
-      insufficientCapacity: false
-    };
+    return { volumes: maxFill.volumes, achievedCPO: maxFill.blendedCost, achievable: Math.abs(target - maxFill.blendedCost) <= 0.01, reason: target > maxFill.blendedCost + 0.01 ? 'above-max' : null, insufficientCapacity: false };
   }
 
   // Target strictly between minFill/maxFill — exact hit is guaranteed.
@@ -880,7 +881,6 @@ function computeIdealAllocation(partners, totalVolume, target){
   // partner priced AT/ABOVE target (high anchor, cascading similarly).
   const low = sortedAsc.filter(p => p.cost <= target);
   const high = sortedAsc.filter(p => p.cost > target);
-
   const volumes = {};
   partners.forEach(p => { volumes[p.key] = 0; });
 
@@ -929,12 +929,66 @@ function computeIdealAllocation(partners, totalVolume, target){
   const totalCost = partners.reduce((s,p) => s + (volumes[p.key]||0) * p.cost, 0);
   const achievedCPO = placed > ALLOC_EPS ? totalCost / placed : 0;
 
+  return { volumes, achievedCPO, achievable: Math.abs(achievedCPO - target) <= 0.01, reason: null, insufficientCapacity: false };
+}
+
+/**
+ * partners: [{ key, cost, minVol, maxVol }]
+ * Guarantees each partner gets AT LEAST minVol (its committed floor,
+ * "irrespective" of the optimization), then distributes the remaining
+ * volume across each partner's flexible room (maxVol - minVol) to land
+ * on Target CPO as closely as possible, using the same minimal-cheap-use
+ * logic as before. Falls back cleanly if mins/maxes make the target (or
+ * even feasibility itself) impossible.
+ *
+ * Returns { volumes, achievedCPO, achievable, reason, insufficientCapacity, minExceeded }
+ */
+function computeIdealAllocation(partners, totalVolume, target){
+  if (!partners.length || totalVolume <= ALLOC_EPS){
+    return { volumes: {}, achievedCPO: 0, achievable: false, reason: 'Add at least one partner with volume > 0.', insufficientCapacity: false };
+  }
+
+  const sumMin = partners.reduce((s,p) => s + p.minVol, 0);
+  if (sumMin > totalVolume + ALLOC_EPS){
+    return {
+      volumes: {}, achievedCPO: 0, achievable: false,
+      reason: 'Minimum commitments (' + fmtNum(sumMin) + ') exceed the total volume (' + fmtNum(totalVolume) + ') — lower some Min % values.',
+      insufficientCapacity: true, minExceeded: true
+    };
+  }
+
+  const remaining = totalVolume - sumMin;
+  const baseCost = partners.reduce((s,p) => s + p.minVol * p.cost, 0);
+
+  if (remaining <= ALLOC_EPS){
+    const volumes = {};
+    partners.forEach(p => { volumes[p.key] = p.minVol; });
+    const achievedCPO = totalVolume > 0 ? baseCost / totalVolume : 0;
+    return { volumes, achievedCPO, achievable: Math.abs(achievedCPO - target) <= 0.01, reason: null, insufficientCapacity: false };
+  }
+
+  const subTarget = (target * totalVolume - baseCost) / remaining;
+  const flexPartners = partners.map(p => ({ key: p.key, cost: p.cost, capVol: Math.max(0, p.maxVol - p.minVol) }));
+  const flexResult = computeIdealAllocationCore(flexPartners, remaining, subTarget);
+
+  const volumes = {};
+  partners.forEach(p => { volumes[p.key] = p.minVol + (flexResult.volumes[p.key] || 0); });
+  const totalCost = partners.reduce((s,p) => s + volumes[p.key] * p.cost, 0);
+  const achievedCPO = totalVolume > 0 ? totalCost / totalVolume : 0;
+
+  let reason = null;
+  if (flexResult.insufficientCapacity){
+    reason = 'Combined Max % values are too low to place the full volume — raise some Max % values.';
+  } else if (flexResult.reason === 'below-min'){
+    reason = 'Even with minimal cheap-partner use, the guaranteed minimums push the blend above target — target is below the cheapest achievable blend under current Min/Max.';
+  } else if (flexResult.reason === 'above-max'){
+    reason = 'Target is above the priciest achievable blend under current Min/Max.';
+  }
+
   return {
-    volumes,
-    achievedCPO,
+    volumes, achievedCPO,
     achievable: Math.abs(achievedCPO - target) <= 0.01,
-    reason: null,
-    insufficientCapacity: false
+    reason, insufficientCapacity: !!flexResult.insufficientCapacity
   };
 }
 
@@ -944,25 +998,26 @@ let allocTargetCPO = null;
 let allocShipType = 'Forward';
 let allocMode = 'volume'; // 'volume' | 'percentage'
 let allocSelected = new Set();     // selected partner names
-let allocData = {};                // partner -> { cap, currentVolume, currentPct, cost, costSource, costOverridden, costLoading }
-let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode AND as the source of auto-Cap %
+let allocData = {};                // partner -> { historicalPct, currentVolume, currentPct, cost, costSource, costOverridden, costLoading, idealVolume, idealPct }
+let allocMinThreshold = 2;         // global Min % floor — same for every partner
+let allocMaxThreshold = 45;        // global Max % ceiling — same for every partner
+let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode AND as the source of Previous Allocation %
 const allocCostCache = new Map();  // key: partner|volume|shipmentType -> {rate, source}
 
 function allocDefaultRow(){
   // currentVolume/currentPct start as null (not 0) so a freshly-added
   // partner's input field renders empty — the user can type straight
   // into it instead of backspacing a literal "0" first.
-  // cap starts null; computeAutoCaps() fills it in — Cap is no longer a
-  // user-typed input, it's derived from historical order share.
-  return { cap: null, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
+  return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
 }
 
-/** Auto-derives each selected partner's Cap % from their historical
- * order share (out of the currently-loaded dashboard's byPartner data,
- * renormalized across just the SELECTED partners so caps sum to 100%
- * among them). Falls back to an equal split if no dashboard data is
- * loaded yet, or a selected partner has zero historical orders. */
-function computeAutoCaps(){
+/** Fills in each selected partner's Previous Allocation % — their real
+ * historical order share (out of the currently-loaded dashboard's
+ * byPartner data, renormalized across just the selected partners).
+ * Purely informational/read-only — NOT used as a Min/Max bound anymore;
+ * the Min/Max Threshold fields above the table are a single shared
+ * value applied to every partner instead. */
+function computeHistoricalShare(){
   const partners = [...allocSelected];
   if (!partners.length) return;
 
@@ -972,13 +1027,11 @@ function computeAutoCaps(){
   }
   const totalHistorical = partners.reduce((s,p) => s + (historicalOrders[p]||0), 0);
 
-  if (totalHistorical <= 0){
-    const equal = 100 / partners.length;
-    partners.forEach(p => { if (allocData[p]) allocData[p].cap = equal; });
-    return;
-  }
   partners.forEach(p => {
-    if (allocData[p]) allocData[p].cap = ((historicalOrders[p]||0) / totalHistorical) * 100;
+    if (!allocData[p]) return;
+    allocData[p].historicalPct = totalHistorical > 0
+      ? ((historicalOrders[p]||0) / totalHistorical) * 100
+      : (100 / partners.length);
   });
 }
 
@@ -1005,7 +1058,7 @@ function renderAllocPartnerChips(){
         allocSelected.delete(p);
         delete allocData[p];
       }
-      computeAutoCaps();
+      computeHistoricalShare();
       renderAllocPartnerChips();
       syncAllocTotals();
       runAllocOptimizer();
@@ -1114,6 +1167,19 @@ function runAllocOptimizer(){
 
   const banner = document.getElementById('alloc-feasibility-banner');
   const summary = document.getElementById('alloc-summary');
+  const validationBox = document.getElementById('alloc-validation-warning');
+
+  // Live validation: Projected % across all selected partners must never
+  // total more than 100% — flag it immediately, independent of whether
+  // the optimizer itself can run yet.
+  const totalProjectedPct = partners.reduce((s,p) => s + ((allocData[p] && allocData[p].currentPct) || 0), 0);
+  if (totalProjectedPct > 100.01){
+    validationBox.style.display = 'block';
+    validationBox.innerHTML = '⚠ Total Projected % is ' + totalProjectedPct.toFixed(2) + '% — that is above 100%, which is not possible. Please reduce one or more partners\' Projected allocation.';
+  } else {
+    validationBox.style.display = 'none';
+    validationBox.innerHTML = '';
+  }
 
   if (!partners.length || totalVolume <= 0 || allocTargetCPO == null || isNaN(allocTargetCPO)){
     banner.style.display = 'none';
@@ -1124,7 +1190,11 @@ function runAllocOptimizer(){
 
   const optInput = partners
     .filter(p => allocData[p] && allocData[p].cost != null)
-    .map(p => ({ key: p, cost: allocData[p].cost, capVol: (allocData[p].cap/100) * totalVolume }));
+    .map(p => ({
+      key: p, cost: allocData[p].cost,
+      minVol: (allocMinThreshold/100) * totalVolume,
+      maxVol: (allocMaxThreshold/100) * totalVolume
+    }));
 
   const pendingCount = partners.length - optInput.length;
 
@@ -1148,29 +1218,29 @@ function runAllocOptimizer(){
     allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
   });
 
-  // Current/existing blended CPO, using the SAME fixed Applicable Cost values
+  // Current/existing blended CPOL, using the SAME fixed Applicable Cost values
   const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * (allocData[p].cost||0), 0);
-  const currentCPO = totalVolume > 0 ? currentCost / totalVolume : 0;
+  const currentCPOL = totalVolume > 0 ? currentCost / totalVolume : 0;
 
   banner.style.display = 'block';
   const pendingNote = pendingCount > 0 ? ' <em>(' + pendingCount + ' partner' + (pendingCount>1?'s':'') + ' still loading Applicable Cost — will join automatically.)</em>' : '';
   if (result.insufficientCapacity){
     banner.style.background = 'var(--bad-tint-strong)'; banner.style.color = 'var(--bad)';
-    banner.innerHTML = '<strong>Not enough partner capacity.</strong> ' + result.reason + pendingNote;
+    banner.innerHTML = '<strong>' + (result.minExceeded ? 'Min Threshold too high.' : 'Max Threshold too low.') + '</strong> ' + result.reason + pendingNote;
   } else if (result.achievable){
     banner.style.background = 'var(--good-tint)'; banner.style.color = 'var(--good)';
-    banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPO.' + pendingNote;
+    banner.innerHTML = '<strong>Target Achievable</strong> — Ideal allocation reaches ' + fmtRate(result.achievedCPO) + ' CPOL.' + pendingNote;
   } else {
     banner.style.background = 'var(--bad-tint-strong)'; banner.style.color = 'var(--bad)';
-    banner.innerHTML = '<strong>Target CPO Not Achievable Under Current Caps.</strong> Closest achievable: ' +
+    banner.innerHTML = '<strong>Target CPOL Not Achievable Under Current Min/Max Threshold.</strong> Closest achievable: ' +
       fmtRate(result.achievedCPO) + ' (Target ' + fmtRate(allocTargetCPO) + ', diff ' + fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)) + '). ' + (result.reason || '') + pendingNote;
   }
 
   summary.innerHTML =
-    '<div class="kpi-card"><div class="label">Target CPO</div><div class="value">'+fmtRate(allocTargetCPO)+'</div></div>' +
-    '<div class="kpi-card"><div class="label">Current/Existing CPO</div><div class="value">'+fmtRate(currentCPO)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Ideal/Resulting CPO</div><div class="value">'+fmtRate(result.achievedCPO)+'</div></div>' +
-    '<div class="kpi-card highlight"><div class="label">Difference from Target</div><div class="value">'+fmtRate(Math.abs(result.achievedCPO - allocTargetCPO))+'</div></div>';
+    '<div class="mini-stat" style="--mini-accent:var(--muted);"><span class="mini-label">Target CPOL</span><span class="mini-value">'+fmtRate(allocTargetCPO)+'</span></div>' +
+    '<div class="mini-stat" style="--mini-accent:var(--teal); --mini-tint:var(--teal-tint);"><span class="mini-label">Current CPOL</span><span class="mini-value">'+fmtRate(currentCPOL)+'</span></div>' +
+    '<div class="mini-stat" style="--mini-accent:var(--accent-2); --mini-tint:var(--accent-tint-strong);"><span class="mini-label">Ideal CPOL</span><span class="mini-value">'+fmtRate(result.achievedCPO)+'</span></div>' +
+    '<div class="mini-stat" style="--mini-accent:var(--coral); --mini-tint:var(--coral-tint);"><span class="mini-label">Diff from Target</span><span class="mini-value">'+fmtRate(Math.abs(result.achievedCPO - allocTargetCPO))+'</span></div>';
 
   renderAllocTable();
 }
@@ -1182,42 +1252,38 @@ function renderAllocTable(){
 
   const partners = [...allocSelected];
   if (!partners.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Select one or more delivery partners above to begin</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select one or more delivery partners above to begin</td></tr>';
     return;
   }
 
   const total = allocTotalVolume();
   const infeasiblePartners = [];
 
-  partners.forEach(p => {
+  partners.forEach((p, i) => {
     const row = allocData[p];
-    const cap = row.cap || 0;
-    const capVol = (cap/100) * total;
-    const infeasible = (row.currentPct||0) > cap + 0.01;
-    if (infeasible) infeasiblePartners.push({ partner: p, currentPct: row.currentPct||0, cap });
+    const historicalPct = row.historicalPct || 0;
+    const infeasible = (row.currentPct||0) > allocMaxThreshold + 0.01;
+    if (infeasible) infeasiblePartners.push({ partner: p, currentPct: row.currentPct||0 });
     const idealVol = row.idealVolume || 0;
     const idealPct = row.idealPct || 0;
-    const currentAllocatedCost = (row.currentVolume||0) * (row.cost || 0);
-    const idealAllocatedCost = idealVol * (row.cost || 0);
+    const dotColor = BAR_COLORS[i % BAR_COLORS.length];
 
     const tr = document.createElement('tr');
-    if (infeasible) tr.style.background = 'var(--bad-tint)';
+    tr.style.background = infeasible ? 'var(--bad-tint)' : (i % 2 === 1 ? 'var(--panel-2)' : 'transparent');
     tr.innerHTML =
-      '<td>'+p+(infeasible ? ' <span title="Current allocation exceeds this partner\'s Cap" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
-      '<td title="Auto-calculated from this partner\'s historical order share — not editable">'+cap.toFixed(2)+'%</td>' +
+      '<td><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:'+dotColor+'; margin-right:7px; vertical-align:middle;"></span>'+p+(infeasible ? ' <span title="Projected allocation exceeds the Max Threshold" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
+      '<td><div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><div style="flex:1; max-width:50px; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden;"><div style="width:'+Math.min(historicalPct,100)+'%; height:100%; background:'+dotColor+'; opacity:.55;"></div></div><span style="font-size:12px; color:var(--muted);">'+historicalPct.toFixed(2)+'%</span></div></td>' +
       '<td>' + (allocMode==='volume'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
         : fmtNum(row.currentVolume||0)) + '</td>' +
       '<td>' + (allocMode==='percentage'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentPct" type="number" min="0" max="100" step="0.01" placeholder="0" value="'+(row.currentPct==null?'':row.currentPct.toFixed(2))+'" style="width:80px;">'
         : (row.currentPct||0).toFixed(2)+'%') + '</td>' +
-      '<td>'+(row.cost==null ? '—' : fmtMoney(currentAllocatedCost))+'</td>' +
       '<td>' + (row.costLoading
         ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
         : '<input class="alloc-input" data-partner="'+p+'" data-field="cost" type="number" min="0" step="0.01" value="'+(row.cost==null?'':row.cost)+'" title="'+(row.costSource||'').replace(/"/g,'&quot;')+'" style="width:80px;">') + '</td>' +
       '<td>'+fmtNum(idealVol)+'</td>' +
-      '<td>'+idealPct.toFixed(2)+'%</td>' +
-      '<td>'+fmtMoney(idealAllocatedCost)+'</td>' +
+      '<td><div style="display:flex; align-items:center; gap:6px;"><div style="flex:1; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden; min-width:40px;"><div style="width:'+Math.min(idealPct,100)+'%; height:100%; background:linear-gradient(90deg,'+dotColor+',var(--accent-2));"></div></div><span style="font-size:12px; font-weight:700; color:var(--accent-2);">'+idealPct.toFixed(2)+'%</span></div></td>' +
       '<td><button class="icon-btn danger" data-remove-partner="'+p+'">✕</button></td>';
     tbody.appendChild(tr);
   });
@@ -1226,42 +1292,23 @@ function renderAllocTable(){
   if (infeasiblePartners.length){
     warningsBox.style.display = 'block';
     warningsBox.innerHTML = infeasiblePartners.map(w =>
-      '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;">' +
-        '<span>⚠ <strong>'+w.partner+'</strong>: Current allocation ('+w.currentPct.toFixed(2)+'%) exceeds its historical Cap ('+w.cap.toFixed(2)+'%). This allocation is not feasible.</span>' +
-        '<button class="icon-btn" data-fix-partner="'+w.partner+'">Clamp to cap</button>' +
-      '</div>'
+      '<div style="padding:4px 0;">⚠ <strong>'+w.partner+'</strong>: Projected allocation ('+w.currentPct.toFixed(2)+'%) exceeds the Max Threshold ('+allocMaxThreshold.toFixed(2)+'%).</div>'
     ).join('<hr style="border:none; border-top:1px solid var(--bad-border-tint); margin:4px 0;">');
   } else {
     warningsBox.style.display = 'none';
     warningsBox.innerHTML = '';
   }
 
-  warningsBox.querySelectorAll('button[data-fix-partner]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = btn.dataset.fixPartner;
-      const row = allocData[p];
-      if (allocMode === 'volume'){
-        row.currentVolume = (row.cap/100) * total;
-      } else {
-        row.currentPct = row.cap;
-      }
-      syncAllocTotals();
-      fetchApplicableCost(p).then(runAllocOptimizer);
-      runAllocOptimizer();
-    });
-  });
-
   const totalCurrentPct = partners.reduce((s,p) => s + (allocData[p].currentPct||0), 0);
   const totalIdealPct = partners.reduce((s,p) => s + (allocData[p].idealPct||0), 0);
-  const totalAllocatedCost = partners.reduce((s,p) => s + (allocData[p].idealVolume||0) * (allocData[p].cost||0), 0);
   const tfootTr = document.createElement('tr');
   tfootTr.style.fontWeight = '700';
   tfootTr.innerHTML =
     '<td>Total</td><td></td><td></td>' +
-    '<td>'+totalCurrentPct.toFixed(2)+'%</td>' +
-    '<td></td><td></td><td></td>' +
-    '<td>'+totalIdealPct.toFixed(2)+'%</td>' +
-    '<td>'+fmtMoney(totalAllocatedCost)+'</td><td></td>';
+    '<td style="color:'+(totalCurrentPct > 100.01 ? 'var(--bad)' : 'var(--text)')+';">'+totalCurrentPct.toFixed(2)+'%</td>' +
+    '<td></td>' +
+    '<td></td>' +
+    '<td>'+totalIdealPct.toFixed(2)+'%</td><td></td>';
   tfoot.appendChild(tfootTr);
 
   tbody.querySelectorAll('.alloc-input').forEach(input => {
@@ -1298,7 +1345,7 @@ function renderAllocTable(){
       const p = btn.dataset.removePartner;
       allocSelected.delete(p);
       delete allocData[p];
-      computeAutoCaps();
+      computeHistoricalShare();
       renderAllocPartnerChips();
       syncAllocTotals();
       runAllocOptimizer();
@@ -1318,7 +1365,7 @@ function renderAllDashboardData(data){
   renderPartnerPieChart(data.byPartner);
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
-  computeAutoCaps();
+  computeHistoricalShare();
   if (allocSelected.size) { syncAllocTotals(); runAllocOptimizer(); }
 }
 
@@ -1346,6 +1393,18 @@ async function loadDashboard(){
 document.getElementById('alloc-target-cpo').addEventListener('change', (e) => {
   const val = Number(e.target.value);
   allocTargetCPO = e.target.value === '' ? null : val;
+  runAllocOptimizer();
+});
+
+document.getElementById('alloc-min-threshold').addEventListener('change', (e) => {
+  allocMinThreshold = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+  e.target.value = allocMinThreshold;
+  runAllocOptimizer();
+});
+
+document.getElementById('alloc-max-threshold').addEventListener('change', (e) => {
+  allocMaxThreshold = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+  e.target.value = allocMaxThreshold;
   runAllocOptimizer();
 });
 
@@ -1378,9 +1437,14 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   allocSelected = new Set();
   allocData = {};
   allocTargetCPO = null;
+  allocMinThreshold = 2;
+  allocMaxThreshold = 45;
   document.getElementById('alloc-target-cpo').value = '';
+  document.getElementById('alloc-min-threshold').value = 2;
+  document.getElementById('alloc-max-threshold').value = 45;
   renderAllocPartnerChips();
   document.getElementById('alloc-feasibility-banner').style.display = 'none';
+  document.getElementById('alloc-validation-warning').style.display = 'none';
   document.getElementById('alloc-summary').innerHTML = '';
   renderAllocTable();
 });
