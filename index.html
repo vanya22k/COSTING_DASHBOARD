@@ -328,10 +328,11 @@
         </div>
       </div>
 
-      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:repeat(3,1fr) auto;">
+      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:repeat(2,1fr) auto;">
         <div class="field">
           <label>Target Cost Per Order</label>
           <input type="number" id="alloc-target-cpo" placeholder="e.g. 40" min="0" step="0.01">
+          <div style="font-size:11px; color:var(--muted); margin-top:2px;">Weight assumed at 250gm for all partners, same as the main dashboard.</div>
         </div>
         <div class="field">
           <label>Allocation Mode</label>
@@ -340,20 +341,17 @@
             <option value="percentage">Percentage</option>
           </select>
         </div>
-        <div class="field" style="justify-content:flex-end;">
-          <div style="font-size:11px; color:var(--muted);">Weight assumed at 250gm for all partners, same as the main dashboard.</div>
-        </div>
         <button id="btn-alloc-reset" class="secondary">Reset All</button>
       </div>
 
       <div class="sim-grid" style="grid-template-columns:repeat(2,180px) 1fr; margin-top:12px;">
         <div class="field">
           <label>Min Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
-          <input type="number" id="alloc-min-threshold" min="0" max="100" step="0.01" value="2">
+          <input type="number" id="alloc-min-threshold" min="1" max="45" step="0.01" value="2">
         </div>
         <div class="field">
           <label>Max Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
-          <input type="number" id="alloc-max-threshold" min="0" max="100" step="0.01" value="45">
+          <input type="number" id="alloc-max-threshold" min="1" max="45" step="0.01" value="45">
         </div>
         <div class="field" style="justify-content:flex-end;">
           <div style="font-size:11px; color:var(--muted);">One common floor/ceiling for every selected partner &mdash; e.g. no partner goes below 2% or above 45%.</div>
@@ -380,6 +378,7 @@
               <th>Applicable Cost</th>
               <th>Ideal Volume</th>
               <th>Ideal %</th>
+              <th>Verdict</th>
               <th></th>
             </tr>
           </thead>
@@ -1053,7 +1052,19 @@ function renderAllocPartnerChips(){
       if (cb.checked){
         allocSelected.add(p);
         allocData[p] = allocDefaultRow();
-        fetchApplicableCost(p); // volume is 0 initially; fetch will no-op until a volume exists
+        // Prefill Projected Volume from this partner's real historical
+        // order volume — same source Applicable Cost already falls back
+        // to. Without this, Volume mode's total stays 0 (and so does
+        // Ideal Volume/%) until the user manually types every partner's
+        // volume; this gives a sensible, fully-editable starting point
+        // ("what we did last period") instead of a dead-empty table.
+        if (allocMode === 'volume'){
+          const histRow = lastDashboardData && lastDashboardData.byPartner
+            ? lastDashboardData.byPartner.find(r => r[0] === p)
+            : null;
+          if (histRow) allocData[p].currentVolume = Math.round(histRow[1]) || null;
+        }
+        fetchApplicableCost(p);
       } else {
         allocSelected.delete(p);
         delete allocData[p];
@@ -1252,7 +1263,7 @@ function renderAllocTable(){
 
   const partners = [...allocSelected];
   if (!partners.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select one or more delivery partners above to begin</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Select one or more delivery partners above to begin</td></tr>';
     return;
   }
 
@@ -1268,6 +1279,23 @@ function renderAllocTable(){
     const idealPct = row.idealPct || 0;
     const dotColor = BAR_COLORS[i % BAR_COLORS.length];
 
+    // Verdict: compares your Projected % (what you're planning to keep
+    // for next month) against the Ideal % the optimizer recommends —
+    // tells you at a glance whether your plan is on track.
+    const projectedPct = row.currentPct || 0;
+    const hasIdeal = row.idealVolume != null;
+    const delta = projectedPct - idealPct;
+    let verdictHtml = '<span style="color:var(--muted); font-size:11px;">—</span>';
+    if (hasIdeal && (row.currentVolume || row.currentPct)){
+      if (Math.abs(delta) <= 2){
+        verdictHtml = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--good); font-weight:700; font-size:12px;">✓ On track</span>';
+      } else if (delta > 2){
+        verdictHtml = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--warn); font-weight:700; font-size:12px;" title="You are projecting more than the ideal — consider trimming">▼ Over by '+delta.toFixed(1)+'%</span>';
+      } else {
+        verdictHtml = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--coral); font-weight:700; font-size:12px;" title="You are projecting less than the ideal — room to increase">▲ Under by '+Math.abs(delta).toFixed(1)+'%</span>';
+      }
+    }
+
     const tr = document.createElement('tr');
     tr.style.background = infeasible ? 'var(--bad-tint)' : (i % 2 === 1 ? 'var(--panel-2)' : 'transparent');
     tr.innerHTML =
@@ -1281,9 +1309,10 @@ function renderAllocTable(){
         : (row.currentPct||0).toFixed(2)+'%') + '</td>' +
       '<td>' + (row.costLoading
         ? '<span style="color:var(--muted); font-size:12px;">loading…</span>'
-        : '<input class="alloc-input" data-partner="'+p+'" data-field="cost" type="number" min="0" step="0.01" value="'+(row.cost==null?'':row.cost)+'" title="'+(row.costSource||'').replace(/"/g,'&quot;')+'" style="width:80px;">') + '</td>' +
+        : '<input class="alloc-input" data-partner="'+p+'" data-field="cost" type="number" min="0" step="0.01" value="'+(row.cost==null?'':row.cost)+'" title="'+(row.costSource||'').replace(/"/g,'&quot;')+'" style="width:80px;'+((row.cost===0 && !row.costOverridden)?' border-color:var(--bad);':'')+'">'+((row.cost===0 && !row.costOverridden)?' <span title="No Rate Card match at this volume — hover the cost field for details, or edit it manually" style="color:var(--bad); cursor:help;">⚠</span>':'')) + '</td>' +
       '<td>'+fmtNum(idealVol)+'</td>' +
       '<td><div style="display:flex; align-items:center; gap:6px;"><div style="flex:1; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden; min-width:40px;"><div style="width:'+Math.min(idealPct,100)+'%; height:100%; background:linear-gradient(90deg,'+dotColor+',var(--accent-2));"></div></div><span style="font-size:12px; font-weight:700; color:var(--accent-2);">'+idealPct.toFixed(2)+'%</span></div></td>' +
+      '<td>'+verdictHtml+'</td>' +
       '<td><button class="icon-btn danger" data-remove-partner="'+p+'">✕</button></td>';
     tbody.appendChild(tr);
   });
@@ -1308,7 +1337,7 @@ function renderAllocTable(){
     '<td style="color:'+(totalCurrentPct > 100.01 ? 'var(--bad)' : 'var(--text)')+';">'+totalCurrentPct.toFixed(2)+'%</td>' +
     '<td></td>' +
     '<td></td>' +
-    '<td>'+totalIdealPct.toFixed(2)+'%</td><td></td>';
+    '<td>'+totalIdealPct.toFixed(2)+'%</td><td></td><td></td>';
   tfoot.appendChild(tfootTr);
 
   tbody.querySelectorAll('.alloc-input').forEach(input => {
@@ -1366,6 +1395,14 @@ function renderAllDashboardData(data){
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
   computeHistoricalShare();
+  // Default Target CPO to the current overall blended CPOL, so the
+  // optimizer has something sensible to work toward immediately
+  // instead of sitting blank — the user can change it any time.
+  if (allocTargetCPO == null && data.kpis && data.kpis.cpol > 0){
+    allocTargetCPO = data.kpis.cpol;
+    const targetInput = document.getElementById('alloc-target-cpo');
+    if (targetInput) targetInput.value = allocTargetCPO;
+  }
   if (allocSelected.size) { syncAllocTotals(); runAllocOptimizer(); }
 }
 
@@ -1397,13 +1434,13 @@ document.getElementById('alloc-target-cpo').addEventListener('change', (e) => {
 });
 
 document.getElementById('alloc-min-threshold').addEventListener('change', (e) => {
-  allocMinThreshold = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+  allocMinThreshold = Math.max(1, Math.min(45, Number(e.target.value) || 1));
   e.target.value = allocMinThreshold;
   runAllocOptimizer();
 });
 
 document.getElementById('alloc-max-threshold').addEventListener('change', (e) => {
-  allocMaxThreshold = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+  allocMaxThreshold = Math.max(1, Math.min(45, Number(e.target.value) || 45));
   e.target.value = allocMaxThreshold;
   runAllocOptimizer();
 });
