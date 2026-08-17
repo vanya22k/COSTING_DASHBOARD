@@ -362,9 +362,9 @@
         <div class="field" style="align-items:flex-end;">
           <label>Shipment Type</label>
           <div class="seg" id="alloc-type-seg">
-            <button data-simtype="Forward" class="active">Forward</button>
+            <button data-simtype="Forward">Forward</button>
             <button data-simtype="Reverse">Reverse</button>
-            <button data-simtype="All">All</button>
+            <button data-simtype="All" class="active">All</button>
           </div>
         </div>
       </div>
@@ -1035,7 +1035,7 @@ function computeIdealAllocation(partners, totalVolume, target){
 // ---------- State ----------
 
 let allocTargetCPO = null;
-let allocShipType = 'Forward';
+let allocShipType = 'All';
 let allocMode = 'volume'; // 'volume' | 'percentage'
 let allocSelected = new Set();     // selected partner names
 let allocData = {};                // partner -> { historicalPct, currentVolume, currentPct, cost, costSource, costOverridden, costLoading, idealVolume, idealPct }
