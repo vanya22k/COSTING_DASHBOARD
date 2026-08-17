@@ -206,31 +206,64 @@
   <div class="topbar">
     <div>
       <h1 style="display:flex; align-items:center; gap:12px;">
-        <svg class="reactor-icon" width="38" height="38" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <svg class="reactor-icon" width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <radialGradient id="reactorCoreGrad" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="35%" stop-color="#9c6ff0"/>
-              <stop offset="75%" stop-color="#5b6ee8"/>
+              <stop offset="30%" stop-color="#e3d8ff"/>
+              <stop offset="55%" stop-color="#9c6ff0"/>
+              <stop offset="85%" stop-color="#5b6ee8"/>
               <stop offset="100%" stop-color="#5b6ee8" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="reactorHalo" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#9c6ff0" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#9c6ff0" stop-opacity="0"/>
             </radialGradient>
             <linearGradient id="reactorRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#5b6ee8"/>
               <stop offset="50%" stop-color="#9c6ff0"/>
               <stop offset="100%" stop-color="#ff7a8a"/>
             </linearGradient>
+            <linearGradient id="reactorRingGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ff7a8a"/>
+              <stop offset="50%" stop-color="#0fa8ae"/>
+              <stop offset="100%" stop-color="#5b6ee8"/>
+            </linearGradient>
           </defs>
 
-          <circle class="reactor-ring-outer" cx="50" cy="50" r="46" fill="none" stroke="url(#reactorRingGrad)" stroke-width="2.5" stroke-dasharray="10 8" opacity="0.85"/>
-          <circle class="reactor-ring-inner" cx="50" cy="50" r="34" fill="none" stroke="url(#reactorRingGrad)" stroke-width="2" stroke-dasharray="4 6" opacity="0.6"/>
+          <!-- soft outer halo -->
+          <circle cx="50" cy="50" r="48" fill="url(#reactorHalo)"/>
 
-          <g class="reactor-orbit-dot">
-            <circle cx="50" cy="4" r="3" fill="#ff7a8a"/>
+          <!-- four concentric rings, alternating spin direction -->
+          <circle class="reactor-ring-outer" cx="50" cy="50" r="47" fill="none" stroke="url(#reactorRingGrad)" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.55"/>
+          <circle class="reactor-ring-inner" cx="50" cy="50" r="41" fill="none" stroke="url(#reactorRingGrad2)" stroke-width="2" stroke-dasharray="14 5" opacity="0.7"/>
+          <circle class="reactor-ring-outer" cx="50" cy="50" r="34" fill="none" stroke="url(#reactorRingGrad)" stroke-width="2.5" stroke-dasharray="10 8" opacity="0.85" style="animation-duration:11s;"/>
+          <circle class="reactor-ring-inner" cx="50" cy="50" r="27" fill="none" stroke="url(#reactorRingGrad2)" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.6" style="animation-duration:4s;"/>
+
+          <!-- thin radial tick-spokes (abstract, not a machined housing) -->
+          <g class="reactor-ring-inner" stroke="#9c6ff0" stroke-width="1" opacity="0.5" style="animation-duration:7s;">
+            <line x1="50" y1="14" x2="50" y2="19"/>
+            <line x1="50" y1="81" x2="50" y2="86"/>
+            <line x1="14" y1="50" x2="19" y2="50"/>
+            <line x1="81" y1="50" x2="86" y2="50"/>
+            <line x1="24" y1="24" x2="27.5" y2="27.5"/>
+            <line x1="72.5" y1="72.5" x2="76" y2="76"/>
+            <line x1="76" y1="24" x2="72.5" y2="27.5"/>
+            <line x1="27.5" y1="72.5" x2="24" y2="76"/>
           </g>
 
-          <circle class="reactor-core" cx="50" cy="50" r="22" fill="url(#reactorCoreGrad)"/>
-          <circle cx="50" cy="50" r="9" fill="#ffffff" opacity="0.95"/>
-          <circle cx="50" cy="50" r="9" fill="none" stroke="#5b6ee8" stroke-width="1.5"/>
+          <!-- orbiting dots at different radii/speeds -->
+          <g class="reactor-orbit-dot">
+            <circle cx="50" cy="3" r="2.6" fill="#ff7a8a"/>
+          </g>
+          <g class="reactor-orbit-dot" style="animation-duration:5s; animation-direction:reverse;">
+            <circle cx="50" cy="19" r="1.6" fill="#0fa8ae"/>
+          </g>
+
+          <!-- glowing pulsing core -->
+          <circle class="reactor-core" cx="50" cy="50" r="20" fill="url(#reactorCoreGrad)"/>
+          <circle cx="50" cy="50" r="8" fill="#ffffff" opacity="0.95"/>
+          <circle cx="50" cy="50" r="8" fill="none" stroke="#5b6ee8" stroke-width="1.2"/>
         </svg>
         STARK
       </h1>
@@ -1093,11 +1126,9 @@ function renderAllocPartnerChips(){
       if (cb.checked){
         allocSelected.add(p);
         allocData[p] = allocDefaultRow();
-        // Projected Volume is intentionally left blank — the user types
-        // their planned volume manually. Applicable Cost still falls
-        // back to historical volume internally just to fetch a starting
-        // rate estimate, but that estimate is NOT written into
-        // currentVolume itself.
+        // Projected Volume is left blank — the user types it manually.
+        // Applicable Cost stays unset until a real volume is entered
+        // (fetchApplicableCost() is a no-op with volume=0 right now).
         fetchApplicableCost(p);
       } else {
         allocSelected.delete(p);
@@ -1169,19 +1200,16 @@ async function fetchApplicableCost(partner){
   const row = allocData[partner];
   if (!row) return;
 
-  let volume = Math.round(row.currentVolume) || 0;
+  const volume = Math.round(row.currentVolume) || 0;
   if (volume <= 0){
-    // No Current Volume typed yet — estimate using this partner's real
-    // historical order volume (the same source auto-Cap comes from) so
-    // Applicable Cost — and therefore the optimizer — isn't stuck waiting
-    // on every partner to have a manually-entered volume. Once a real
-    // Current Volume is typed, the change handler re-calls this and the
-    // real value takes over.
-    const histRow = lastDashboardData && lastDashboardData.byPartner
-      ? lastDashboardData.byPartner.find(r => r[0] === partner)
-      : null;
-    volume = histRow ? Math.round(histRow[1]) || 0 : 0;
-    if (volume <= 0) return; // genuinely no data available anywhere yet
+    // No Projected Volume entered yet — Applicable Cost stays unset.
+    // We deliberately do NOT estimate a cost from historical volume:
+    // Applicable Cost must be driven by what the user actually types in
+    // Projected Volume ("if I give this partner X volume, what would it
+    // cost?"), and a partner with no real input should not participate
+    // in the Ideal allocation at all until it has one.
+    row.cost = null; row.costSource = ''; row.costOverridden = false;
+    return;
   }
 
   const cacheKey = [partner, volume, allocShipType].join('|');
@@ -1249,7 +1277,7 @@ function runAllocOptimizer(){
     banner.style.display = 'block';
     banner.style.background = 'var(--warn-tint)';
     banner.style.color = 'var(--warn)';
-    banner.innerHTML = 'Waiting for Applicable Cost to load…';
+    banner.innerHTML = 'Enter a Projected Volume for at least one partner to see Applicable Cost and Ideal Volume/%.';
     summary.innerHTML = '';
     renderAllocTable();
     return;
