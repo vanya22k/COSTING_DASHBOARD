@@ -109,16 +109,7 @@
   }
 
   .reactor-icon{display:inline-block; vertical-align:middle; overflow:visible;}
-  .reactor-core{transform-origin:50% 50%; animation:reactor-pulse 2.4s ease-in-out infinite;}
-  .reactor-ring-outer{transform-origin:50% 50%; animation:reactor-spin 8s linear infinite;}
-  .reactor-ring-inner{transform-origin:50% 50%; animation:reactor-spin-rev 5.5s linear infinite;}
-  .reactor-orbit-dot{transform-origin:50% 50%; animation:reactor-spin 3s linear infinite;}
-  @keyframes reactor-pulse{
-    0%,100%{opacity:.85; filter:brightness(1);}
-    50%{opacity:1; filter:brightness(1.35);}
-  }
-  @keyframes reactor-spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-  @keyframes reactor-spin-rev{ from{transform:rotate(360deg);} to{transform:rotate(0deg);} }
+
   .kpi-card::before{
     content:''; position:absolute; top:0; left:0; right:0; height:4px; border-radius:var(--radius) var(--radius) 0 0;
     background:var(--accent-kpi, var(--accent));
@@ -205,66 +196,136 @@
 
   <div class="topbar">
     <div>
-      <h1 style="display:flex; align-items:center; gap:12px;">
-        <svg class="reactor-icon" width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="reactorCoreGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="30%" stop-color="#e3d8ff"/>
-              <stop offset="55%" stop-color="#9c6ff0"/>
-              <stop offset="85%" stop-color="#5b6ee8"/>
-              <stop offset="100%" stop-color="#5b6ee8" stop-opacity="0"/>
-            </radialGradient>
-            <radialGradient id="reactorHalo" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#9c6ff0" stop-opacity="0.35"/>
-              <stop offset="100%" stop-color="#9c6ff0" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="reactorRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#5b6ee8"/>
-              <stop offset="50%" stop-color="#9c6ff0"/>
-              <stop offset="100%" stop-color="#ff7a8a"/>
-            </linearGradient>
-            <linearGradient id="reactorRingGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#ff7a8a"/>
-              <stop offset="50%" stop-color="#0fa8ae"/>
-              <stop offset="100%" stop-color="#5b6ee8"/>
-            </linearGradient>
-          </defs>
+      <h1 style="display:flex; align-items:center; gap:4px;">
+        <svg class="reactor-icon" xmlns="http://www.w3.org/2000/svg" viewBox="164 164 672 672" width="42" height="42">
+<defs>
+  <radialGradient id="core2" cx="50%" cy="50%">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset=".12" stop-color="#ffffff"/>
+    <stop offset=".28" stop-color="#f3e2ff"/>
+    <stop offset=".55" stop-color="#b473ff"/>
+    <stop offset=".78" stop-color="#7a1fe0"/>
+    <stop offset="1" stop-color="#440f8a"/>
+  </radialGradient>
+  <linearGradient id="metal2" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#eceaf3"/>
+    <stop offset=".12" stop-color="#6a5f79"/>
+    <stop offset=".28" stop-color="#1e1729"/>
+    <stop offset=".48" stop-color="#b8aec1"/>
+    <stop offset=".62" stop-color="#332a42"/>
+    <stop offset=".82" stop-color="#d0c7d7"/>
+    <stop offset="1" stop-color="#302639"/>
+  </linearGradient>
+  <linearGradient id="gold2" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#f0cf7f"/><stop offset=".45" stop-color="#8a5b1f"/><stop offset="1" stop-color="#e6b95b"/>
+  </linearGradient>
+  <filter id="glow2" x="-100%" y="-100%" width="300%" height="300%">
+    <feGaussianBlur stdDeviation="10" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="bigGlow2" x="-100%" y="-100%" width="300%" height="300%">
+    <feGaussianBlur stdDeviation="28"/>
+  </filter>
+  <style>
+    .pulse2{animation:pulse2 1.65s ease-in-out infinite;transform-origin:500px 500px}
+    .spin2{animation:spin2 9s linear infinite;transform-origin:500px 500px}
+    .spinR2{animation:spinR2 13s linear infinite;transform-origin:500px 500px}
+    .flicker2{animation:flicker2 1.15s ease-in-out infinite}
+    @keyframes pulse2{0%,100%{opacity:.82;transform:scale(.99)}50%{opacity:1;transform:scale(1.018)}}
+    @keyframes spin2{to{transform:rotate(360deg)}}
+    @keyframes spinR2{to{transform:rotate(-360deg)}}
+    @keyframes flicker2{0%,100%{opacity:.72}45%{opacity:1}60%{opacity:.82}}
+    @media(prefers-reduced-motion:reduce){.pulse2,.spin2,.spinR2,.flicker2{animation:none}}
+  </style>
+</defs>
 
-          <!-- soft outer halo -->
-          <circle cx="50" cy="50" r="48" fill="url(#reactorHalo)"/>
+<!-- Transparent background -->
 
-          <!-- four concentric rings, alternating spin direction -->
-          <circle class="reactor-ring-outer" cx="50" cy="50" r="47" fill="none" stroke="url(#reactorRingGrad)" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.55"/>
-          <circle class="reactor-ring-inner" cx="50" cy="50" r="41" fill="none" stroke="url(#reactorRingGrad2)" stroke-width="2" stroke-dasharray="14 5" opacity="0.7"/>
-          <circle class="reactor-ring-outer" cx="50" cy="50" r="34" fill="none" stroke="url(#reactorRingGrad)" stroke-width="2.5" stroke-dasharray="10 8" opacity="0.85" style="animation-duration:11s;"/>
-          <circle class="reactor-ring-inner" cx="50" cy="50" r="27" fill="none" stroke="url(#reactorRingGrad2)" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.6" style="animation-duration:4s;"/>
+<g class="pulse2">
 
-          <!-- thin radial tick-spokes (abstract, not a machined housing) -->
-          <g class="reactor-ring-inner" stroke="#9c6ff0" stroke-width="1" opacity="0.5" style="animation-duration:7s;">
-            <line x1="50" y1="14" x2="50" y2="19"/>
-            <line x1="50" y1="81" x2="50" y2="86"/>
-            <line x1="14" y1="50" x2="19" y2="50"/>
-            <line x1="81" y1="50" x2="86" y2="50"/>
-            <line x1="24" y1="24" x2="27.5" y2="27.5"/>
-            <line x1="72.5" y1="72.5" x2="76" y2="76"/>
-            <line x1="76" y1="24" x2="72.5" y2="27.5"/>
-            <line x1="27.5" y1="72.5" x2="24" y2="76"/>
-          </g>
+  <!-- diffuse core glow -->
+  <circle cx="500" cy="500" r="330" fill="#a259ff" opacity=".11" filter="url(#bigGlow2)"/>
 
-          <!-- orbiting dots at different radii/speeds -->
-          <g class="reactor-orbit-dot">
-            <circle cx="50" cy="3" r="2.6" fill="#ff7a8a"/>
-          </g>
-          <g class="reactor-orbit-dot" style="animation-duration:5s; animation-direction:reverse;">
-            <circle cx="50" cy="19" r="1.6" fill="#0fa8ae"/>
-          </g>
+  <!-- outer machined housing -->
+  <circle cx="500" cy="500" r="318" fill="#150f1a" stroke="#726579" stroke-width="18"/>
+  <circle cx="500" cy="500" r="298" fill="none" stroke="url(#metal2)" stroke-width="24"/>
+  <circle cx="500" cy="500" r="274" fill="#0f0a14" stroke="#382c40" stroke-width="8"/>
 
-          <!-- glowing pulsing core -->
-          <circle class="reactor-core" cx="50" cy="50" r="20" fill="url(#reactorCoreGrad)"/>
-          <circle cx="50" cy="50" r="8" fill="#ffffff" opacity="0.95"/>
-          <circle cx="50" cy="50" r="8" fill="none" stroke="#5b6ee8" stroke-width="1.2"/>
-        </svg>
+  <!-- outer engraved/technical ring -->
+  <g class="spinR2" fill="none">
+    <circle cx="500" cy="500" r="257" stroke="#c6b9ca" stroke-width="3" stroke-dasharray="2 15"/>
+    <circle cx="500" cy="500" r="244" stroke="#635369" stroke-width="7" stroke-dasharray="44 10 6 10"/>
+  </g>
+
+  <!-- radial mechanical blocks -->
+  <g class="spin2">
+    <g fill="url(#metal2)" stroke="#241829" stroke-width="5">
+      <rect x="485" y="257" width="30" height="68" rx="7"/>
+      <rect x="485" y="675" width="30" height="68" rx="7"/>
+      <rect x="257" y="485" width="68" height="30" rx="7"/>
+      <rect x="675" y="485" width="68" height="30" rx="7"/>
+      <g transform="rotate(45 500 500)">
+        <rect x="485" y="257" width="30" height="68" rx="7"/>
+        <rect x="485" y="675" width="30" height="68" rx="7"/>
+        <rect x="257" y="485" width="68" height="30" rx="7"/>
+        <rect x="675" y="485" width="68" height="30" rx="7"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- bright segmented energy ring -->
+  <circle cx="500" cy="500" r="211" fill="#180f22" stroke="#a08fa8" stroke-width="5"/>
+  <g class="flicker2" filter="url(#glow2)">
+    <circle cx="500" cy="500" r="190" fill="none" stroke="#eeD8ff" stroke-width="25"
+            stroke-dasharray="30 11"/>
+    <circle cx="500" cy="500" r="190" fill="none" stroke="#9b3bff" stroke-width="11"
+            stroke-dasharray="30 11"/>
+  </g>
+
+  <!-- dark separators over luminous ring -->
+  <g fill="#241827">
+    <g transform="rotate(0 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
+    <g transform="rotate(45 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
+    <g transform="rotate(90 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
+    <g transform="rotate(135 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
+  </g>
+
+  <!-- inner black/metal aperture -->
+  <circle cx="500" cy="500" r="151" fill="#0b060f" stroke="#786b84" stroke-width="7"/>
+  <circle cx="500" cy="500" r="135" fill="#150d1b" stroke="#3d2c47" stroke-width="9"/>
+
+  <!-- radial coil / spoke structure -->
+  <g class="spinR2" stroke="url(#gold2)" stroke-width="7" fill="none" opacity=".9">
+    <circle cx="500" cy="500" r="116" stroke-dasharray="14 8"/>
+    <path d="M500 382 L500 430 M618 500 L570 500 M500 618 L500 570 M382 500 L430 500"/>
+    <path d="M416 416 L450 450 M584 416 L550 450 M584 584 L550 550 M416 584 L450 550"/>
+  </g>
+
+  <!-- suspended luminous core -->
+  <circle cx="500" cy="500" r="82" fill="#a437ed" opacity=".25" filter="url(#bigGlow2)"/>
+  <circle cx="500" cy="500" r="72" fill="#0f0817" stroke="#b19fb8" stroke-width="6"/>
+  <circle cx="500" cy="500" r="58" fill="url(#core2)" filter="url(#glow2)"/>
+
+  <!-- iconic bright central disc -->
+  <circle cx="500" cy="500" r="29" fill="#fdf8ff"/>
+  <circle cx="500" cy="500" r="14" fill="#ffffff"/>
+
+  <!-- precision bolts -->
+  <g fill="#e0d6e4" stroke="#35263c" stroke-width="4">
+    <circle cx="500" cy="347" r="8"/>
+    <circle cx="653" cy="500" r="8"/>
+    <circle cx="500" cy="653" r="8"/>
+    <circle cx="347" cy="500" r="8"/>
+  </g>
+
+  <!-- subtle purple energy arcs -->
+  <g class="spin2" fill="none" stroke="#c073ff" stroke-width="4" opacity=".65">
+    <path d="M328 420 A180 180 0 0 1 420 328"/>
+    <path d="M580 672 A180 180 0 0 1 672 580"/>
+  </g>
+
+</g>
+</svg>
         STARK
       </h1>
       <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:-2px 0 4px 2px;">3PL Costing Dashboard</div>
@@ -496,21 +557,14 @@ let currentGranularity = 'day';
 const dashboardCache = new Map();
 
 function fmtMoney(n){
-  // Aggregate totals (Forward/Reverse/Total Cost, Total Cost Allocation)
-  // are shown in Lakhs — e.g. ₹4,380.34L — since raw rupee figures here
-  // run into crores and are hard to scan.
   n = Number(n) || 0;
   return CUR + (n / 100000).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + 'L';
 }
 function fmtNum(n){
-  // Aggregate order counts, same Lakhs treatment.
   n = Number(n) || 0;
   return (n / 100000).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + 'L';
 }
 function fmtRate(n){
-  // Per-order rate values (CPOL, Cost Per Order) stay in plain rupees —
-  // these are inherently small (tens of rupees) and dividing by 100000
-  // would make them unreadable.
   n = Number(n) || 0;
   return CUR + n.toLocaleString('en-IN', {maximumFractionDigits:2});
 }
@@ -883,28 +937,7 @@ function renderPartnerPieChart(byPartner){
 
 /*************************************************************
  * COST SIMULATOR — Target CPO Allocation Optimizer
- *
- * Answers: "what should my ideal partner mix be to hit a Target CPO,
- * compared with what I'm currently doing?"
- *
- * - Applicable Cost per partner is fetched ONCE via the existing
- *   `simulate` action (reusing the real Rate Card engine, at 250gm,
- *   same as the main dashboard), based on that partner's CURRENT
- *   volume. It is then treated as FIXED for the optimizer — it does
- *   NOT get re-fetched as Ideal Volume changes, per explicit design
- *   decision. It remains user-editable at any time; an edit overrides
- *   the fetched value immediately for all calculations.
- * - Forward/Reverse is a single global toggle for the whole table
- *   (no per-partner mixing, no "All" option — this simulator answers
- *   a single-shipment-type allocation question).
- * - Volume/Percentage is a single global input mode. Whichever is NOT
- *   the input mode is always derived, never independently editable.
- * - Ideal Allocation uses the MINIMUM necessary cheap-partner capacity
- *   to hit Target CPO exactly (not a blind max-fill of the cheapest
- *   partner) — see computeIdealAllocation() below.
  *************************************************************/
-
-// ---------- Ideal-allocation optimizer (pure function, no DOM/API) ----------
 
 const ALLOC_EPS = 1e-6;
 
@@ -923,8 +956,6 @@ function allocGreedyFill(sortedPartners, totalVolume){
   return { volumes, cost, placed, blendedCost: placed > ALLOC_EPS ? cost / placed : 0 };
 }
 
-/** Core: fills `partners` [{key,cost,capVol}] to hit `target` as closely
- * as possible using minimal necessary cheap-partner capacity. */
 function computeIdealAllocationCore(partners, totalVolume, target){
   if (!partners.length || totalVolume <= ALLOC_EPS){
     return { volumes: {}, achievedCPO: 0, achievable: false, reason: null, insufficientCapacity: false };
@@ -948,10 +979,6 @@ function computeIdealAllocationCore(partners, totalVolume, target){
     return { volumes: maxFill.volumes, achievedCPO: maxFill.blendedCost, achievable: Math.abs(target - maxFill.blendedCost) <= 0.01, reason: target > maxFill.blendedCost + 0.01 ? 'above-max' : null, insufficientCapacity: false };
   }
 
-  // Target strictly between minFill/maxFill — exact hit is guaranteed.
-  // Two-anchor alligation: cheapest partner (low anchor, cascading to
-  // next-cheapest as caps run out) blended against the cheapest
-  // partner priced AT/ABOVE target (high anchor, cascading similarly).
   const low = sortedAsc.filter(p => p.cost <= target);
   const high = sortedAsc.filter(p => p.cost > target);
   const volumes = {};
@@ -1005,17 +1032,6 @@ function computeIdealAllocationCore(partners, totalVolume, target){
   return { volumes, achievedCPO, achievable: Math.abs(achievedCPO - target) <= 0.01, reason: null, insufficientCapacity: false };
 }
 
-/**
- * partners: [{ key, cost, minVol, maxVol }]
- * Guarantees each partner gets AT LEAST minVol (its committed floor,
- * "irrespective" of the optimization), then distributes the remaining
- * volume across each partner's flexible room (maxVol - minVol) to land
- * on Target CPO as closely as possible, using the same minimal-cheap-use
- * logic as before. Falls back cleanly if mins/maxes make the target (or
- * even feasibility itself) impossible.
- *
- * Returns { volumes, achievedCPO, achievable, reason, insufficientCapacity, minExceeded }
- */
 function computeIdealAllocation(partners, totalVolume, target){
   if (!partners.length || totalVolume <= ALLOC_EPS){
     return { volumes: {}, achievedCPO: 0, achievable: false, reason: 'Add at least one partner with volume > 0.', insufficientCapacity: false };
@@ -1069,34 +1085,25 @@ function computeIdealAllocation(partners, totalVolume, target){
 
 let allocTargetCPO = null;
 let allocShipType = 'All';
-let allocMode = 'volume'; // 'volume' | 'percentage'
-let allocSelected = new Set();     // selected partner names
-let allocData = {};                // partner -> { historicalPct, currentVolume, currentPct, cost, costSource, costOverridden, costLoading, idealVolume, idealPct }
-let allocMinThreshold = 2;         // global Min % floor — same for every partner
-let allocMaxThreshold = 45;        // global Max % ceiling — same for every partner
-let lastDashboardData = null;      // most recent successful dashboard payload, used as the volume anchor in Percentage mode AND as the source of Previous Allocation %
-const allocCostCache = new Map();  // key: partner|volume|shipmentType -> {rate, source}
+let allocMode = 'volume';
+let allocSelected = new Set();
+let allocData = {};
+let allocMinThreshold = 2;
+let allocMaxThreshold = 45;
+let lastDashboardData = null;
+const allocCostCache = new Map();
 
 function allocDefaultRow(){
-  // currentVolume/currentPct start as null (not 0) so a freshly-added
-  // partner's input field renders empty — the user can type straight
-  // into it instead of backspacing a literal "0" first.
   return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
 }
 
-/** Fills in each selected partner's Previous Allocation % — their real
- * historical order share (out of the currently-loaded dashboard's
- * byPartner data, renormalized across just the selected partners).
- * Purely informational/read-only — NOT used as a Min/Max bound anymore;
- * the Min/Max Threshold fields above the table are a single shared
- * value applied to every partner instead. */
 function computeHistoricalShare(){
   const partners = [...allocSelected];
   if (!partners.length) return;
 
   const historicalOrders = {};
   if (lastDashboardData && lastDashboardData.byPartner){
-    lastDashboardData.byPartner.forEach(r => { historicalOrders[r[0]] = r[1]; }); // r[0]=partner, r[1]=orders
+    lastDashboardData.byPartner.forEach(r => { historicalOrders[r[0]] = r[1]; });
   }
   const totalHistorical = partners.reduce((s,p) => s + (historicalOrders[p]||0), 0);
 
@@ -1126,9 +1133,6 @@ function renderAllocPartnerChips(){
       if (cb.checked){
         allocSelected.add(p);
         allocData[p] = allocDefaultRow();
-        // Projected Volume is left blank — the user types it manually.
-        // Applicable Cost stays unset until a real volume is entered
-        // (fetchApplicableCost() is a no-op with volume=0 right now).
         fetchApplicableCost(p);
       } else {
         allocSelected.delete(p);
@@ -1166,24 +1170,16 @@ document.addEventListener('click', (e) => {
   }
 });
 
-/** Total volume basis. Volume mode: sum of entered Current Volumes.
- * Percentage mode: the real total Forward/Reverse orders from the most
- * recently loaded dashboard (for the currently active filters) — this
- * is the "current/recent total allocation" the spec calls for, without
- * adding a separate Total Volume input. */
 function allocTotalVolume(){
   if (allocMode === 'volume'){
     return Object.values(allocData).reduce((s,r) => s + (Number(r.currentVolume)||0), 0);
   }
   if (lastDashboardData && lastDashboardData.kpis){
-    // 'All' prices the same Forward order set under a combined Forward+RTO
-    // cost assumption — it shares the Forward volume basis, not Reverse.
     return allocShipType === 'Reverse' ? (lastDashboardData.kpis.reverseOrders||0) : (lastDashboardData.kpis.forwardOrders||0);
   }
   return 0;
 }
 
-/** Keeps Current Volume/% mathematically linked to whichever is the input mode. */
 function syncAllocTotals(){
   const total = allocTotalVolume();
   Object.keys(allocData).forEach(p => {
@@ -1202,12 +1198,6 @@ async function fetchApplicableCost(partner){
 
   const volume = Math.round(row.currentVolume) || 0;
   if (volume <= 0){
-    // No Projected Volume entered yet — Applicable Cost stays unset.
-    // We deliberately do NOT estimate a cost from historical volume:
-    // Applicable Cost must be driven by what the user actually types in
-    // Projected Volume ("if I give this partner X volume, what would it
-    // cost?"), and a partner with no real input should not participate
-    // in the Ideal allocation at all until it has one.
     row.cost = null; row.costSource = ''; row.costOverridden = false;
     return;
   }
@@ -1233,7 +1223,6 @@ async function fetchApplicableCost(partner){
   runAllocOptimizer();
 }
 
-/** Recomputes the ideal allocation and re-renders. Call after any input change. */
 function runAllocOptimizer(){
   const partners = allocSelected.size ? [...allocSelected] : [];
   const totalVolume = allocTotalVolume();
@@ -1242,9 +1231,6 @@ function runAllocOptimizer(){
   const summary = document.getElementById('alloc-summary');
   const validationBox = document.getElementById('alloc-validation-warning');
 
-  // Live validation: Projected % across all selected partners must never
-  // total more than 100% — flag it immediately, independent of whether
-  // the optimizer itself can run yet.
   const totalProjectedPct = partners.reduce((s,p) => s + ((allocData[p] && allocData[p].currentPct) || 0), 0);
   if (totalProjectedPct > 100.01){
     validationBox.style.display = 'block';
@@ -1283,16 +1269,9 @@ function runAllocOptimizer(){
     return;
   }
 
-  // No Target CPO entered: instead of blocking, find the CHEAPEST
-  // achievable blend under the current Min/Max Threshold — i.e. "what's
-  // the best CPOL I could get?" A very-low sentinel target forces the
-  // optimizer's alligation logic straight to its cheapest-possible-blend
-  // branch (same underlying math, just interpreted as "no ceiling").
   const effectiveTarget = hasTarget ? allocTargetCPO : -999999;
   const result = computeIdealAllocation(optInput, totalVolume, effectiveTarget);
 
-  // Partners still waiting on a cost fetch get no ideal volume this
-  // round — they'll be included automatically once their cost resolves.
   partners.forEach(p => {
     if (!optInput.some(o => o.key === p)) { allocData[p].idealVolume = 0; allocData[p].idealPct = 0; return; }
     const vol = result.volumes[p] || 0;
@@ -1300,7 +1279,6 @@ function runAllocOptimizer(){
     allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
   });
 
-  // Current/existing blended CPOL, using the SAME fixed Applicable Cost values
   const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * (allocData[p].cost||0), 0);
   const currentCPOL = totalVolume > 0 ? currentCost / totalVolume : 0;
 
@@ -1354,9 +1332,6 @@ function renderAllocTable(){
     const idealPct = row.idealPct || 0;
     const dotColor = BAR_COLORS[i % BAR_COLORS.length];
 
-    // Verdict: compares your Projected % (what you're planning to keep
-    // for next month) against the Ideal % the optimizer recommends —
-    // tells you at a glance whether your plan is on track.
     const projectedPct = row.currentPct || 0;
     const hasIdeal = row.idealVolume != null;
     const delta = projectedPct - idealPct;
@@ -1470,10 +1445,6 @@ function renderAllDashboardData(data){
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
   computeHistoricalShare();
-  // Target CPO is left for the user to set manually. Leaving it blank
-  // is a legitimate mode now — runAllocOptimizer() shows the Best
-  // Achievable CPOL under the Min/Max Threshold when no target is set,
-  // rather than requiring one.
   if (allocSelected.size) { syncAllocTotals(); runAllocOptimizer(); }
 }
 
@@ -1520,10 +1491,6 @@ document.querySelectorAll('#alloc-type-seg button').forEach(btn => {
   btn.addEventListener('click', async () => {
     allocShipType = btn.dataset.simtype;
     document.querySelectorAll('#alloc-type-seg button').forEach(b => b.classList.toggle('active', b === btn));
-    // Shipment type change invalidates fetched Applicable Cost for every
-    // selected partner (Forward vs Reverse rates differ) — refetch all,
-    // unless the user manually overrode a cost (their override stands
-    // until they change it themselves).
     const partners = [...allocSelected];
     await Promise.all(partners.map(p => {
       if (allocData[p].costOverridden) return Promise.resolve();
