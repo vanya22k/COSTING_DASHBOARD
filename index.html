@@ -426,7 +426,7 @@
           <tbody></tbody>
           <tfoot></tfoot>
         </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Previous Allocation % shows each partner's real historical order share (read-only, for reference). The Min/Max Threshold above applies the same floor and ceiling to every partner. Projected Volume/% is what you plan to allocate &mdash; editable, and validated to never total more than 100%. Applicable Cost is auto-calculated from the Rate Card at your Projected Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% guarantees the Min Threshold for every partner, then fills the rest to land as close to the Target CPO as possible.</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Previous Allocation % shows each partner's real historical order share (read-only, for reference). The Min/Max Threshold above applies the same floor and ceiling to every partner. Projected Volume/% is what you plan to allocate &mdash; type it in yourself; nothing is pre-filled. Applicable Cost is auto-calculated from the Rate Card at your Projected Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% guarantees the Min Threshold for every partner, then fills the rest to land as close to the Target CPO as possible &mdash; if no Target CPO is set, it instead shows the cheapest CPOL achievable under the Min/Max Threshold.</div>
       </div>
 
       <div id="alloc-validation-warning" style="display:none; margin-top:14px; padding:12px 16px; border-radius:var(--radius-sm); font-size:12px; background:var(--bad-tint-strong); border:1px solid var(--bad-border); color:var(--bad); font-weight:600;"></div>
@@ -1093,18 +1093,11 @@ function renderAllocPartnerChips(){
       if (cb.checked){
         allocSelected.add(p);
         allocData[p] = allocDefaultRow();
-        // Prefill Projected Volume from this partner's real historical
-        // order volume — same source Applicable Cost already falls back
-        // to. Without this, Volume mode's total stays 0 (and so does
-        // Ideal Volume/%) until the user manually types every partner's
-        // volume; this gives a sensible, fully-editable starting point
-        // ("what we did last period") instead of a dead-empty table.
-        if (allocMode === 'volume'){
-          const histRow = lastDashboardData && lastDashboardData.byPartner
-            ? lastDashboardData.byPartner.find(r => r[0] === p)
-            : null;
-          if (histRow) allocData[p].currentVolume = Math.round(histRow[1]) || null;
-        }
+        // Projected Volume is intentionally left blank — the user types
+        // their planned volume manually. Applicable Cost still falls
+        // back to historical volume internally just to fetch a starting
+        // rate estimate, but that estimate is NOT written into
+        // currentVolume itself.
         fetchApplicableCost(p);
       } else {
         allocSelected.delete(p);
@@ -1233,7 +1226,9 @@ function runAllocOptimizer(){
     validationBox.innerHTML = '';
   }
 
-  if (!partners.length || totalVolume <= 0 || allocTargetCPO == null || isNaN(allocTargetCPO)){
+  const hasTarget = allocTargetCPO != null && !isNaN(allocTargetCPO);
+
+  if (!partners.length || totalVolume <= 0){
     banner.style.display = 'none';
     summary.innerHTML = '';
     renderAllocTable();
@@ -1260,7 +1255,14 @@ function runAllocOptimizer(){
     return;
   }
 
-  const result = computeIdealAllocation(optInput, totalVolume, allocTargetCPO);
+  // No Target CPO entered: instead of blocking, find the CHEAPEST
+  // achievable blend under the current Min/Max Threshold — i.e. "what's
+  // the best CPOL I could get?" A very-low sentinel target forces the
+  // optimizer's alligation logic straight to its cheapest-possible-blend
+  // branch (same underlying math, just interpreted as "no ceiling").
+  const effectiveTarget = hasTarget ? allocTargetCPO : -999999;
+  const result = computeIdealAllocation(optInput, totalVolume, effectiveTarget);
+
   // Partners still waiting on a cost fetch get no ideal volume this
   // round — they'll be included automatically once their cost resolves.
   partners.forEach(p => {
@@ -1276,7 +1278,11 @@ function runAllocOptimizer(){
 
   banner.style.display = 'block';
   const pendingNote = pendingCount > 0 ? ' <em>(' + pendingCount + ' partner' + (pendingCount>1?'s':'') + ' still loading Applicable Cost — will join automatically.)</em>' : '';
-  if (result.insufficientCapacity){
+
+  if (!hasTarget){
+    banner.style.background = 'var(--good-tint)'; banner.style.color = 'var(--good)';
+    banner.innerHTML = '<strong>No Target set — showing the Best Achievable CPOL</strong> (' + fmtRate(result.achievedCPO) + ') under your current Min/Max Threshold. Set a Target CPO above to optimize toward a specific number instead.' + pendingNote;
+  } else if (result.insufficientCapacity){
     banner.style.background = 'var(--bad-tint-strong)'; banner.style.color = 'var(--bad)';
     banner.innerHTML = '<strong>' + (result.minExceeded ? 'Min Threshold too high.' : 'Max Threshold too low.') + '</strong> ' + result.reason + pendingNote;
   } else if (result.achievable){
@@ -1289,10 +1295,10 @@ function runAllocOptimizer(){
   }
 
   summary.innerHTML =
-    '<div class="mini-stat" style="--mini-accent:var(--muted);"><span class="mini-label">Target CPOL</span><span class="mini-value">'+fmtRate(allocTargetCPO)+'</span></div>' +
+    '<div class="mini-stat" style="--mini-accent:var(--muted);"><span class="mini-label">Target CPOL</span><span class="mini-value">'+(hasTarget?fmtRate(allocTargetCPO):'— (none set)')+'</span></div>' +
     '<div class="mini-stat" style="--mini-accent:var(--teal); --mini-tint:var(--teal-tint);"><span class="mini-label">Current CPOL</span><span class="mini-value">'+fmtRate(currentCPOL)+'</span></div>' +
-    '<div class="mini-stat" style="--mini-accent:var(--accent-2); --mini-tint:var(--accent-tint-strong);"><span class="mini-label">Ideal CPOL</span><span class="mini-value">'+fmtRate(result.achievedCPO)+'</span></div>' +
-    '<div class="mini-stat" style="--mini-accent:var(--coral); --mini-tint:var(--coral-tint);"><span class="mini-label">Diff from Target</span><span class="mini-value">'+fmtRate(Math.abs(result.achievedCPO - allocTargetCPO))+'</span></div>';
+    '<div class="mini-stat" style="--mini-accent:var(--accent-2); --mini-tint:var(--accent-tint-strong);"><span class="mini-label">'+(hasTarget?'Ideal CPOL':'Best Achievable CPOL')+'</span><span class="mini-value">'+fmtRate(result.achievedCPO)+'</span></div>' +
+    '<div class="mini-stat" style="--mini-accent:var(--coral); --mini-tint:var(--coral-tint);"><span class="mini-label">Diff from Target</span><span class="mini-value">'+(hasTarget?fmtRate(Math.abs(result.achievedCPO - allocTargetCPO)):'—')+'</span></div>';
 
   renderAllocTable();
 }
@@ -1436,14 +1442,10 @@ function renderAllDashboardData(data){
   const granLabel = {day:'Daily', week:'Weekly', month:'Monthly'}[data.trendGranularity || 'day'];
   document.getElementById('trend-title').textContent = 'CPOL & Order Volume Trend (' + granLabel + ')';
   computeHistoricalShare();
-  // Default Target CPO to the current overall blended CPOL, so the
-  // optimizer has something sensible to work toward immediately
-  // instead of sitting blank — the user can change it any time.
-  if (allocTargetCPO == null && data.kpis && data.kpis.cpol > 0){
-    allocTargetCPO = data.kpis.cpol;
-    const targetInput = document.getElementById('alloc-target-cpo');
-    if (targetInput) targetInput.value = allocTargetCPO;
-  }
+  // Target CPO is left for the user to set manually. Leaving it blank
+  // is a legitimate mode now — runAllocOptimizer() shows the Best
+  // Achievable CPOL under the Min/Max Threshold when no target is set,
+  // rather than requiring one.
   if (allocSelected.size) { syncAllocTotals(); runAllocOptimizer(); }
 }
 
