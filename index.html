@@ -363,6 +363,14 @@
         </select>
       </div>
       <div class="field">
+        <label>Pricing Type</label>
+        <select id="f-pricing">
+          <option value="All">All</option>
+          <option value="zone">Zone</option>
+          <option value="volume">Slab</option>
+        </select>
+      </div>
+      <div class="field">
         <label>From</label>
         <input type="date" id="f-from">
       </div>
@@ -463,10 +471,10 @@
         </div>
       </div>
 
-      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:1fr 200px auto; align-items:start; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px;">
+      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:160px 200px auto; align-items:start; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px;">
         <div class="field">
           <label>Target Cost Per Order</label>
-          <input type="number" id="alloc-target-cpo" placeholder="e.g. 40" min="0" step="0.01">
+          <input type="number" id="alloc-target-cpo" placeholder="e.g. 40" min="0" step="0.01" style="width:100%;">
         </div>
         <div class="field">
           <label>Allocation Mode</label>
@@ -495,20 +503,12 @@
 
       <div style="display:flex; gap:var(--space-3); align-items:flex-end; margin-top:14px; flex-wrap:wrap;">
         <div class="field" style="max-width:340px; position:relative;">
-          <label>Delivery Partners</label>
+          <label>Delivery Partners <span style="text-transform:none; font-weight:400; color:var(--muted);">(follows the "Pricing Type" filter above)</span></label>
           <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
             <span id="alloc-partner-dd-label">Select partners…</span>
             <span style="color:var(--muted); font-size:11px;">▾</span>
           </button>
           <div id="alloc-partner-dd-panel" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); z-index:20; min-width:220px; max-height:260px; overflow-y:auto; padding:6px;"></div>
-        </div>
-        <div class="field">
-          <label>Pricing Type Filter</label>
-          <div class="seg" id="alloc-pricing-filter-seg">
-            <button data-pricingfilter="all" class="active">All</button>
-            <button data-pricingfilter="zone">Zone</button>
-            <button data-pricingfilter="volume">Slab</button>
-          </div>
         </div>
       </div>
 
@@ -631,6 +631,7 @@ function currentFilters(){
     zone: document.getElementById('f-zone').value,
     shipmentType: document.getElementById('f-type').value,
     paymentMode: document.getElementById('f-payment').value,
+    pricingType: document.getElementById('f-pricing').value,
     dateFrom: document.getElementById('f-from').value,
     dateTo: document.getElementById('f-to').value,
     granularity: currentGranularity
@@ -1125,16 +1126,15 @@ function computeHistoricalShare(){
   });
 }
 
-let allocPricingFilter = 'all';
-
 function renderAllocPartnerChips(){
   const panel = document.getElementById('alloc-partner-dd-panel');
   const label = document.getElementById('alloc-partner-dd-label');
 
+  const globalPricingFilter = document.getElementById('f-pricing').value; // 'All' | 'zone' | 'volume'
   panel.innerHTML = '';
   const visiblePartners = allPartners.filter(p =>
-    allocPricingFilter === 'all' ||
-    (partnerPricingType[p] || 'volume') === allocPricingFilter ||
+    globalPricingFilter === 'All' ||
+    (partnerPricingType[p] || 'volume') === globalPricingFilter ||
     allocSelected.has(p) // keep already-selected partners visible even if the filter would hide them, so they can still be unchecked
   );
 
@@ -1190,14 +1190,6 @@ document.addEventListener('click', (e) => {
   if (panel.style.display === 'block' && !panel.contains(e.target) && e.target !== btn){
     panel.style.display = 'none';
   }
-});
-
-document.querySelectorAll('#alloc-pricing-filter-seg button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    allocPricingFilter = btn.dataset.pricingfilter;
-    document.querySelectorAll('#alloc-pricing-filter-seg button').forEach(b => b.classList.toggle('active', b === btn));
-    renderAllocPartnerChips();
-  });
 });
 
 function allocTotalVolume(){
@@ -1563,9 +1555,10 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   renderAllocTable();
 });
 
-['f-partner','f-zone','f-type','f-payment'].forEach(id => {
+['f-partner','f-zone','f-type','f-payment','f-pricing'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
 });
+document.getElementById('f-pricing').addEventListener('change', renderAllocPartnerChips);
 ['f-from','f-to'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
 });
@@ -1575,6 +1568,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   document.getElementById('f-zone').value = 'All';
   document.getElementById('f-type').value = 'Combined';
   document.getElementById('f-payment').value = 'All';
+  document.getElementById('f-pricing').value = 'All';
   setGranularity('day');
   loadDashboard();
 });
