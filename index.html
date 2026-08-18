@@ -463,11 +463,10 @@
         </div>
       </div>
 
-      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:repeat(2,1fr) auto;">
+      <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:1fr 200px auto; align-items:start; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px;">
         <div class="field">
           <label>Target Cost Per Order</label>
           <input type="number" id="alloc-target-cpo" placeholder="e.g. 40" min="0" step="0.01">
-          <div style="font-size:11px; color:var(--muted); margin-top:2px;">Weight assumed at 250gm for all partners, same as the main dashboard.</div>
         </div>
         <div class="field">
           <label>Allocation Mode</label>
@@ -477,19 +476,20 @@
           </select>
         </div>
         <button id="btn-alloc-reset" class="secondary">Reset All</button>
+        <div style="grid-column:1 / -1; font-size:11px; color:var(--muted); margin-top:6px;">Weight assumed at 250gm for all partners, same as the main dashboard.</div>
       </div>
 
       <div class="sim-grid" style="grid-template-columns:repeat(2,180px) 1fr; margin-top:12px;">
         <div class="field">
           <label>Min Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
-          <input type="number" id="alloc-min-threshold" min="1" max="45" step="0.01" value="2">
+          <input type="number" id="alloc-min-threshold" min="1" max="48" step="0.01" value="2">
         </div>
         <div class="field">
           <label>Max Threshold % <span style="text-transform:none; font-weight:400;">(applies to every partner)</span></label>
-          <input type="number" id="alloc-max-threshold" min="1" max="45" step="0.01" value="45">
+          <input type="number" id="alloc-max-threshold" min="1" max="48" step="0.01" value="48">
         </div>
         <div class="field" style="justify-content:flex-end;">
-          <div style="font-size:11px; color:var(--muted);">One common floor/ceiling for every selected partner &mdash; e.g. no partner goes below 2% or above 45%.</div>
+          <div style="font-size:11px; color:var(--muted);">One common floor/ceiling for every selected partner &mdash; e.g. no partner goes below 2% or above 48%.</div>
         </div>
       </div>
 
@@ -1089,7 +1089,7 @@ let allocMode = 'volume';
 let allocSelected = new Set();
 let allocData = {};
 let allocMinThreshold = 2;
-let allocMaxThreshold = 45;
+let allocMaxThreshold = 48;
 let lastDashboardData = null;
 const allocCostCache = new Map();
 
@@ -1279,8 +1279,17 @@ function runAllocOptimizer(){
     allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
   });
 
-  const currentCost = partners.reduce((s,p) => s + (allocData[p].currentVolume||0) * (allocData[p].cost||0), 0);
-  const currentCPOL = totalVolume > 0 ? currentCost / totalVolume : 0;
+  // Current/existing blended CPOL — restricted to partners whose
+  // Applicable Cost has actually loaded (cost != null), same as the
+  // optimizer's optInput. Without this restriction, a partner still
+  // waiting on its cost would get treated as costing ₹0 here (via the
+  // `|| 0` fallback) while the optimizer correctly excludes it entirely
+  // — making Current look cheaper than it really is, and cheaper than
+  // even the Best Achievable CPOL, which defeats the whole comparison.
+  const pricedPartners = partners.filter(p => allocData[p] && allocData[p].cost != null);
+  const currentVolumePriced = pricedPartners.reduce((s,p) => s + (allocData[p].currentVolume||0), 0);
+  const currentCost = pricedPartners.reduce((s,p) => s + (allocData[p].currentVolume||0) * allocData[p].cost, 0);
+  const currentCPOL = currentVolumePriced > 0 ? currentCost / currentVolumePriced : 0;
 
   banner.style.display = 'block';
   const pendingNote = pendingCount > 0 ? ' <em>(' + pendingCount + ' partner' + (pendingCount>1?'s':'') + ' still loading Applicable Cost — will join automatically.)</em>' : '';
@@ -1476,13 +1485,13 @@ document.getElementById('alloc-target-cpo').addEventListener('change', (e) => {
 });
 
 document.getElementById('alloc-min-threshold').addEventListener('change', (e) => {
-  allocMinThreshold = Math.max(1, Math.min(45, Number(e.target.value) || 1));
+  allocMinThreshold = Math.max(1, Math.min(48, Number(e.target.value) || 1));
   e.target.value = allocMinThreshold;
   runAllocOptimizer();
 });
 
 document.getElementById('alloc-max-threshold').addEventListener('change', (e) => {
-  allocMaxThreshold = Math.max(1, Math.min(45, Number(e.target.value) || 45));
+  allocMaxThreshold = Math.max(1, Math.min(48, Number(e.target.value) || 48));
   e.target.value = allocMaxThreshold;
   runAllocOptimizer();
 });
@@ -1513,10 +1522,10 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   allocData = {};
   allocTargetCPO = null;
   allocMinThreshold = 2;
-  allocMaxThreshold = 45;
+  allocMaxThreshold = 48;
   document.getElementById('alloc-target-cpo').value = '';
   document.getElementById('alloc-min-threshold').value = 2;
-  document.getElementById('alloc-max-threshold').value = 45;
+  document.getElementById('alloc-max-threshold').value = 48;
   renderAllocPartnerChips();
   document.getElementById('alloc-feasibility-banner').style.display = 'none';
   document.getElementById('alloc-validation-warning').style.display = 'none';
