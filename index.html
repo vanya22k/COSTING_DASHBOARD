@@ -90,6 +90,22 @@
   #status.loading{color:var(--warn);}
   #status.cached{color:var(--good);}
 
+  #top-load-bar{
+    position:fixed; top:0; left:0; height:3px; width:100%; z-index:9999;
+    background:transparent; pointer-events:none; opacity:0; transition:opacity .2s ease;
+  }
+  #top-load-bar.active{opacity:1;}
+  #top-load-bar .bar{
+    height:100%; width:30%;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--coral));
+    animation:load-bar-sweep 1.1s ease-in-out infinite;
+    box-shadow:0 0 8px var(--accent-glow);
+  }
+  @keyframes load-bar-sweep{
+    0%{transform:translateX(-100%);}
+    100%{transform:translateX(400%);}
+  }
+
   .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--space-3); margin-bottom:var(--space-5);}
   .kpi-card{
     position:relative; overflow:hidden;
@@ -193,6 +209,8 @@
 </style>
 </head>
 <body>
+
+  <div id="top-load-bar"><div class="bar"></div></div>
 
   <div class="topbar">
     <div>
@@ -363,14 +381,6 @@
         </select>
       </div>
       <div class="field">
-        <label>Pricing Type</label>
-        <select id="f-pricing">
-          <option value="All">All</option>
-          <option value="zone">Zone</option>
-          <option value="volume">Slab</option>
-        </select>
-      </div>
-      <div class="field">
         <label>From</label>
         <input type="date" id="f-from">
       </div>
@@ -469,7 +479,16 @@
             <button data-simtype="All" class="active">All</button>
           </div>
         </div>
+        <div class="field" style="align-items:flex-end;">
+          <label>Pricing Mode</label>
+          <div class="seg" id="alloc-pricing-mode-seg">
+            <button data-pricingmode="zone" class="active">Zone</button>
+            <button data-pricingmode="volume">Slab</button>
+          </div>
+        </div>
       </div>
+
+      <div style="font-size:11px; color:var(--muted); margin:-6px 0 10px;">Pricing Mode forces how Applicable Cost is calculated for every selected partner &mdash; <strong>Zone</strong> uses each partner's real per-zone rates (even if that partner would normally default to a flat rate at this volume), <strong>Slab</strong> uses only flat, zone-independent rates. A partner with no data of the selected kind shows a ⚠ and ₹0.</div>
 
       <div class="sim-grid" id="alloc-top-grid" style="grid-template-columns:160px 200px auto; align-items:start; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px;">
         <div class="field">
@@ -503,7 +522,7 @@
 
       <div style="display:flex; gap:var(--space-3); align-items:flex-end; margin-top:14px; flex-wrap:wrap;">
         <div class="field" style="max-width:340px; position:relative;">
-          <label>Delivery Partners <span style="text-transform:none; font-weight:400; color:var(--muted);">(follows the "Pricing Type" filter above)</span></label>
+          <label>Delivery Partners</label>
           <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
             <span id="alloc-partner-dd-label">Select partners…</span>
             <span style="color:var(--muted); font-size:11px;">▾</span>
@@ -583,6 +602,7 @@ function setStatus(msg, cls){
   const el = document.getElementById('status');
   el.textContent = msg || '';
   el.className = cls || '';
+  document.getElementById('top-load-bar').classList.toggle('active', cls === 'loading');
 }
 
 async function apiGet(action, params){
@@ -631,7 +651,6 @@ function currentFilters(){
     zone: document.getElementById('f-zone').value,
     shipmentType: document.getElementById('f-type').value,
     paymentMode: document.getElementById('f-payment').value,
-    pricingType: document.getElementById('f-pricing').value,
     dateFrom: document.getElementById('f-from').value,
     dateTo: document.getElementById('f-to').value,
     granularity: currentGranularity
@@ -1096,6 +1115,7 @@ function computeIdealAllocation(partners, totalVolume, target){
 
 let allocTargetCPO = null;
 let allocShipType = 'All';
+let allocPricingMode = 'zone';
 let allocMode = 'volume';
 let allocSelected = new Set();
 let allocData = {};
@@ -1130,19 +1150,8 @@ function renderAllocPartnerChips(){
   const panel = document.getElementById('alloc-partner-dd-panel');
   const label = document.getElementById('alloc-partner-dd-label');
 
-  const globalPricingFilter = document.getElementById('f-pricing').value; // 'All' | 'zone' | 'volume'
   panel.innerHTML = '';
-  const visiblePartners = allPartners.filter(p =>
-    globalPricingFilter === 'All' ||
-    (partnerPricingType[p] || 'volume') === globalPricingFilter ||
-    allocSelected.has(p) // keep already-selected partners visible even if the filter would hide them, so they can still be unchecked
-  );
-
-  if (!visiblePartners.length){
-    panel.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--muted);">No partners match this pricing type.</div>';
-  }
-
-  visiblePartners.forEach(p => {
+  allPartners.forEach(p => {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; font-size:13px;';
     row.addEventListener('mouseenter', () => row.style.background = 'var(--panel-2)');
@@ -1224,7 +1233,7 @@ async function fetchApplicableCost(partner){
     return;
   }
 
-  const cacheKey = [partner, volume, allocShipType].join('|');
+  const cacheKey = [partner, volume, allocShipType, allocPricingMode].join('|');
   if (allocCostCache.has(cacheKey)){
     const cached = allocCostCache.get(cacheKey);
     row.cost = cached.rate; row.costSource = cached.source; row.costOverridden = false;
@@ -1235,7 +1244,7 @@ async function fetchApplicableCost(partner){
   row.costLoading = true;
   renderAllocTable();
   try{
-    const result = await apiGet('simulate', { partner, volume, shipmentType: allocShipType });
+    const result = await apiGet('simulate', { partner, volume, shipmentType: allocShipType, forceMode: allocPricingMode });
     allocCostCache.set(cacheKey, { rate: result.rate, source: result.source });
     row.cost = result.rate; row.costSource = result.source; row.costOverridden = false;
   } catch(err){
@@ -1533,6 +1542,21 @@ document.querySelectorAll('#alloc-type-seg button').forEach(btn => {
   });
 });
 
+document.querySelectorAll('#alloc-pricing-mode-seg button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    allocPricingMode = btn.dataset.pricingmode;
+    document.querySelectorAll('#alloc-pricing-mode-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    const partners = [...allocSelected];
+    await Promise.all(partners.map(p => {
+      if (allocData[p].costOverridden) return Promise.resolve();
+      allocData[p].cost = null;
+      return fetchApplicableCost(p);
+    }));
+    if (allocMode === 'percentage') syncAllocTotals();
+    runAllocOptimizer();
+  });
+});
+
 document.getElementById('alloc-mode-select').addEventListener('change', (e) => {
   allocMode = e.target.value;
   syncAllocTotals();
@@ -1545,9 +1569,11 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   allocTargetCPO = null;
   allocMinThreshold = 2;
   allocMaxThreshold = 48;
+  allocPricingMode = 'zone';
   document.getElementById('alloc-target-cpo').value = '';
   document.getElementById('alloc-min-threshold').value = 2;
   document.getElementById('alloc-max-threshold').value = 48;
+  document.querySelectorAll('#alloc-pricing-mode-seg button').forEach(b => b.classList.toggle('active', b.dataset.pricingmode === 'zone'));
   renderAllocPartnerChips();
   document.getElementById('alloc-feasibility-banner').style.display = 'none';
   document.getElementById('alloc-validation-warning').style.display = 'none';
@@ -1555,10 +1581,9 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   renderAllocTable();
 });
 
-['f-partner','f-zone','f-type','f-payment','f-pricing'].forEach(id => {
+['f-partner','f-zone','f-type','f-payment'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
 });
-document.getElementById('f-pricing').addEventListener('change', renderAllocPartnerChips);
 ['f-from','f-to'].forEach(id => {
   document.getElementById(id).addEventListener('change', loadDashboard);
 });
@@ -1568,7 +1593,6 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   document.getElementById('f-zone').value = 'All';
   document.getElementById('f-type').value = 'Combined';
   document.getElementById('f-payment').value = 'All';
-  document.getElementById('f-pricing').value = 'All';
   setGranularity('day');
   loadDashboard();
 });
