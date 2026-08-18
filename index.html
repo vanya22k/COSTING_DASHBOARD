@@ -106,6 +106,22 @@
     100%{transform:translateX(400%);}
   }
 
+  #load-overlay{
+    position:fixed; inset:0; z-index:9998;
+    background:rgba(20,15,35,0.32); backdrop-filter:blur(1.5px);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; visibility:hidden; transition:opacity .18s ease;
+  }
+  #load-overlay.active{opacity:1; visibility:visible;}
+  #load-overlay .spinner{
+    width:56px; height:56px; border-radius:50%;
+    border:5px solid rgba(255,255,255,0.28);
+    border-top-color:#fff;
+    animation:load-spin .8s linear infinite;
+    box-shadow:0 4px 24px rgba(0,0,0,0.25);
+  }
+  @keyframes load-spin{ to{transform:rotate(360deg);} }
+
   .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--space-3); margin-bottom:var(--space-5);}
   .kpi-card{
     position:relative; overflow:hidden;
@@ -211,6 +227,7 @@
 <body>
 
   <div id="top-load-bar"><div class="bar"></div></div>
+  <div id="load-overlay"><div class="spinner"></div></div>
 
   <div class="topbar">
     <div>
@@ -604,6 +621,7 @@ function setStatus(msg, cls){
   el.textContent = msg || '';
   el.className = cls || '';
   document.getElementById('top-load-bar').classList.toggle('active', cls === 'loading');
+  document.getElementById('load-overlay').classList.toggle('active', cls === 'loading');
 }
 
 async function apiGet(action, params){
