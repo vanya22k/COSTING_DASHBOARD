@@ -422,7 +422,7 @@
     <div class="panel">
       <h2>Partner-wise <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(sorted by lowest CPOL first)</span></h2>
       <table id="tbl-partner">
-        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th></tr></thead>
+        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th><th>Fwd Orders</th><th style="color:var(--teal);">Fwd CPO</th><th>Rev Orders</th><th style="color:var(--coral);">Rev CPO</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -522,39 +522,29 @@
           </div>
         </div>
 
-        <div style="height:1px; background:var(--border); margin:16px 0;"></div>
-
-        <div class="sim-grid" style="grid-template-columns:110px 110px 1fr; gap:var(--space-4); align-items:end;">
-          <div class="field">
-            <label>Min %</label>
-            <input type="number" id="alloc-min-threshold" min="1" max="48" step="0.01" value="2">
-          </div>
-          <div class="field">
-            <label>Max %</label>
-            <input type="number" id="alloc-max-threshold" min="1" max="48" step="0.01" value="48">
-          </div>
-          <div class="field" style="position:relative;">
-            <label>Delivery Partners</label>
-            <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
-              <span id="alloc-partner-dd-label">Select partners…</span>
-              <span style="color:var(--muted); font-size:11px;">▾</span>
-            </button>
-            <div id="alloc-partner-dd-panel" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); z-index:20; min-width:220px; max-height:260px; overflow-y:auto; padding:6px;"></div>
-          </div>
+        <div class="field" style="position:relative; max-width:340px;">
+          <label>Delivery Partners</label>
+          <button type="button" id="alloc-partner-dd-btn" style="background:var(--panel); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:8px; font-size:13px; text-align:left; display:flex; justify-content:space-between; align-items:center; cursor:pointer; box-shadow:none; font-weight:400;">
+            <span id="alloc-partner-dd-label">Select partners…</span>
+            <span style="color:var(--muted); font-size:11px;">▾</span>
+          </button>
+          <div id="alloc-partner-dd-panel" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); z-index:20; min-width:220px; max-height:260px; overflow-y:auto; padding:6px;"></div>
         </div>
 
         <div style="font-size:11px; color:var(--muted); margin-top:12px; line-height:1.6;">
-          Weight assumed at 250gm for all partners. Min/Max % is one common floor/ceiling for every selected partner &mdash; e.g. no partner goes below 2% or above 48%. Pricing Mode forces how Applicable Cost is calculated &mdash; <strong>Zone</strong> uses each partner's real per-zone rates, <strong>Slab</strong> uses only flat, zone-independent rates; a partner with no data of the selected kind shows ⚠ and ₹0.
+          Weight assumed at 250gm for all partners. Min %/Max % are set individually per partner in the table below (default 2%/48%, editable). Pricing Mode forces how Applicable Cost is calculated &mdash; <strong>Zone</strong> uses each partner's real per-zone rates, <strong>Slab</strong> uses only flat, zone-independent rates; a partner with no data of the selected kind shows ⚠ and ₹0.
         </div>
 
       </div>
 
       <div class="sim-table-wrap" style="overflow-x:auto;">
-        <table id="tbl-alloc" style="min-width:820px; border-radius:var(--radius-sm); overflow:hidden;">
+        <table id="tbl-alloc" style="min-width:960px; border-radius:var(--radius-sm); overflow:hidden;">
           <thead>
             <tr>
               <th>Delivery Partner</th>
               <th>Previous Allocation %</th>
+              <th>Min %</th>
+              <th>Max %</th>
               <th>Projected Volume</th>
               <th>Projected %</th>
               <th>Applicable Cost</th>
@@ -567,7 +557,7 @@
           <tbody></tbody>
           <tfoot></tfoot>
         </table>
-        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Previous Allocation % shows each partner's real historical order share (read-only, for reference). The Min/Max Threshold above applies the same floor and ceiling to every partner. Projected Volume/% is what you plan to allocate &mdash; type it in yourself; nothing is pre-filled. Applicable Cost is auto-calculated from the Rate Card at your Projected Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% guarantees the Min Threshold for every partner, then fills the rest to land as close to the Target CPO as possible &mdash; if no Target CPO is set, it instead shows the cheapest CPOL achievable under the Min/Max Threshold.</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:8px;">Previous Allocation % shows each partner's real historical order share (read-only, for reference). Min %/Max % are set individually per partner (editable, default 2%/48%). Projected Volume/% is what you plan to allocate &mdash; type it in yourself; nothing is pre-filled. Applicable Cost is auto-calculated from the Rate Card at your Projected Volume, but you can edit it &mdash; the optimizer then treats your edited value as fixed. Ideal Volume/% guarantees each partner's own Min % as a floor, then fills the rest to land as close to the Target CPO as possible &mdash; if no Target CPO is set, it instead shows the cheapest CPOL achievable under each partner's Min/Max.</div>
       </div>
 
       <div id="alloc-validation-warning" style="display:none; margin-top:14px; padding:12px 16px; border-radius:var(--radius-sm); font-size:12px; background:var(--bad-tint-strong); border:1px solid var(--bad-border); color:var(--bad); font-weight:600;"></div>
@@ -709,7 +699,8 @@ function renderRowsTable(tableId, rows, highlightBestRow){
   const tbody = document.querySelector('#'+tableId+' tbody');
   tbody.innerHTML = '';
   if (!rows || !rows.length){
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No data for this filter selection</td></tr>';
+    const colCount = tableId === 'tbl-partner' ? 10 : 6;
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="'+colCount+'">No data for this filter selection</td></tr>';
     return;
   }
   rows.forEach((r, i) => {
@@ -719,13 +710,24 @@ function renderRowsTable(tableId, rows, highlightBestRow){
       tr.style.background = 'var(--good-tint)';
       tr.style.borderLeft = '3px solid var(--good)';
     }
+    // r[0]=key, r[1]=totalOrders, r[2]=fwdCost, r[3]=revCost, r[4]=totalCost, r[5]=CPOL
+    // r[6]=fwdOrders, r[7]=fwdCPO, r[8]=revOrders, r[9]=revCPO  (partner table only)
+    let extra = '';
+    if (tableId === 'tbl-partner' && r.length >= 10) {
+      extra =
+        '<td>'+fmtNum(r[6])+'</td>' +
+        '<td style="color:var(--teal); font-weight:700;">'+fmtRate(r[7])+'</td>' +
+        '<td>'+fmtNum(r[8])+'</td>' +
+        '<td style="color:var(--coral); font-weight:700;">'+(r[9]>0?fmtRate(r[9]):'—')+'</td>';
+    }
     tr.innerHTML =
       '<td>'+(isBest ? '🏆 ' : '')+r[0]+'</td>' +
       '<td>'+fmtNum(r[1])+'</td>' +
       '<td>'+fmtMoney(r[2])+'</td>' +
       '<td>'+fmtMoney(r[3])+'</td>' +
       '<td>'+fmtMoney(r[4])+'</td>' +
-      '<td>'+fmtRate(r[5])+'</td>';
+      '<td>'+fmtRate(r[5])+'</td>' +
+      extra;
     tbody.appendChild(tr);
   });
 }
@@ -1138,13 +1140,11 @@ let allocPricingMode = 'zone';
 let allocMode = 'volume';
 let allocSelected = new Set();
 let allocData = {};
-let allocMinThreshold = 2;
-let allocMaxThreshold = 48;
 let lastDashboardData = null;
 const allocCostCache = new Map();
 
 function allocDefaultRow(){
-  return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false };
+  return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false, minPct: 2, maxPct: 48 };
 }
 
 function computeHistoricalShare(){
@@ -1303,8 +1303,8 @@ function runAllocOptimizer(){
     .filter(p => allocData[p] && allocData[p].cost != null)
     .map(p => ({
       key: p, cost: allocData[p].cost,
-      minVol: (allocMinThreshold/100) * totalVolume,
-      maxVol: (allocMaxThreshold/100) * totalVolume
+      minVol: ((allocData[p].minPct||0)/100) * totalVolume,
+      maxVol: ((allocData[p].maxPct||100)/100) * totalVolume
     }));
 
   const pendingCount = partners.length - optInput.length;
@@ -1385,8 +1385,8 @@ function renderAllocTable(){
   partners.forEach((p, i) => {
     const row = allocData[p];
     const historicalPct = row.historicalPct || 0;
-    const infeasible = (row.currentPct||0) > allocMaxThreshold + 0.01;
-    if (infeasible) infeasiblePartners.push({ partner: p, currentPct: row.currentPct||0 });
+    const infeasible = (row.currentPct||0) > (row.maxPct||48) + 0.01;
+    if (infeasible) infeasiblePartners.push({ partner: p, currentPct: row.currentPct||0, maxPct: row.maxPct||48 });
     const idealVol = row.idealVolume || 0;
     const idealPct = row.idealPct || 0;
     const dotColor = BAR_COLORS[i % BAR_COLORS.length];
@@ -1408,8 +1408,10 @@ function renderAllocTable(){
     const tr = document.createElement('tr');
     tr.style.background = infeasible ? 'var(--bad-tint)' : (i % 2 === 1 ? 'var(--panel-2)' : 'transparent');
     tr.innerHTML =
-      '<td><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:'+dotColor+'; margin-right:7px; vertical-align:middle;"></span>'+p+(infeasible ? ' <span title="Projected allocation exceeds the Max Threshold" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
+      '<td><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:'+dotColor+'; margin-right:7px; vertical-align:middle;"></span>'+p+(infeasible ? ' <span title="Projected allocation exceeds Max %" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
       '<td><div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><div style="flex:1; max-width:50px; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden;"><div style="width:'+Math.min(historicalPct,100)+'%; height:100%; background:'+dotColor+'; opacity:.55;"></div></div><span style="font-size:12px; color:var(--muted);">'+historicalPct.toFixed(2)+'%</span></div></td>' +
+      '<td><input class="alloc-input" data-partner="'+p+'" data-field="minPct" type="number" min="1" max="48" step="1" value="'+(row.minPct==null?2:row.minPct)+'" style="width:64px; color:var(--teal);"></td>' +
+      '<td><input class="alloc-input" data-partner="'+p+'" data-field="maxPct" type="number" min="1" max="48" step="1" value="'+(row.maxPct==null?48:row.maxPct)+'" style="width:64px; color:var(--coral);"></td>' +
       '<td>' + (allocMode==='volume'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
         : fmtNum(row.currentVolume||0)) + '</td>' +
@@ -1430,7 +1432,7 @@ function renderAllocTable(){
   if (infeasiblePartners.length){
     warningsBox.style.display = 'block';
     warningsBox.innerHTML = infeasiblePartners.map(w =>
-      '<div style="padding:4px 0;">⚠ <strong>'+w.partner+'</strong>: Projected allocation ('+w.currentPct.toFixed(2)+'%) exceeds the Max Threshold ('+allocMaxThreshold.toFixed(2)+'%).</div>'
+      '<div style="padding:4px 0;">⚠ <strong>'+w.partner+'</strong>: Projected allocation ('+w.currentPct.toFixed(2)+'%) exceeds its Max % ('+w.maxPct.toFixed(2)+'%).</div>'
     ).join('<hr style="border:none; border-top:1px solid var(--bad-border-tint); margin:4px 0;">');
   } else {
     warningsBox.style.display = 'none';
@@ -1442,7 +1444,7 @@ function renderAllocTable(){
   const tfootTr = document.createElement('tr');
   tfootTr.style.fontWeight = '700';
   tfootTr.innerHTML =
-    '<td>Total</td><td></td><td></td>' +
+    '<td>Total</td><td></td><td></td><td></td>' +
     '<td style="color:'+(totalCurrentPct > 100.01 ? 'var(--bad)' : 'var(--text)')+';">'+totalCurrentPct.toFixed(2)+'%</td>' +
     '<td></td>' +
     '<td></td>' +
@@ -1458,6 +1460,16 @@ function renderAllocTable(){
       if (field === 'cost'){
         allocData[p].cost = val;
         allocData[p].costOverridden = true;
+        runAllocOptimizer();
+        return;
+      }
+      if (field === 'minPct'){
+        allocData[p].minPct = Math.max(1, Math.min(48, Math.round(val)));
+        runAllocOptimizer();
+        return;
+      }
+      if (field === 'maxPct'){
+        allocData[p].maxPct = Math.max(1, Math.min(48, Math.round(val)));
         runAllocOptimizer();
         return;
       }
@@ -1534,18 +1546,6 @@ document.getElementById('alloc-target-cpo').addEventListener('change', (e) => {
   runAllocOptimizer();
 });
 
-document.getElementById('alloc-min-threshold').addEventListener('change', (e) => {
-  allocMinThreshold = Math.max(1, Math.min(48, Number(e.target.value) || 1));
-  e.target.value = allocMinThreshold;
-  runAllocOptimizer();
-});
-
-document.getElementById('alloc-max-threshold').addEventListener('change', (e) => {
-  allocMaxThreshold = Math.max(1, Math.min(48, Number(e.target.value) || 48));
-  e.target.value = allocMaxThreshold;
-  runAllocOptimizer();
-});
-
 document.querySelectorAll('#alloc-type-seg button').forEach(btn => {
   btn.addEventListener('click', async () => {
     allocShipType = btn.dataset.simtype;
@@ -1586,12 +1586,8 @@ document.getElementById('btn-alloc-reset').addEventListener('click', () => {
   allocSelected = new Set();
   allocData = {};
   allocTargetCPO = null;
-  allocMinThreshold = 2;
-  allocMaxThreshold = 48;
   allocPricingMode = 'zone';
   document.getElementById('alloc-target-cpo').value = '';
-  document.getElementById('alloc-min-threshold').value = 2;
-  document.getElementById('alloc-max-threshold').value = 48;
   document.querySelectorAll('#alloc-pricing-mode-seg button').forEach(b => b.classList.toggle('active', b.dataset.pricingmode === 'zone'));
   renderAllocPartnerChips();
   document.getElementById('alloc-feasibility-banner').style.display = 'none';
