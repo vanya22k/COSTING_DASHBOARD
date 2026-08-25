@@ -422,7 +422,7 @@
     <div class="panel">
       <h2>Partner-wise <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(sorted by lowest CPOL first)</span></h2>
       <table id="tbl-partner">
-        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th><th>Fwd Orders</th><th style="color:var(--teal);">Fwd CPO</th><th>Rev Orders</th><th style="color:var(--coral);">Rev CPO</th></tr></thead>
+        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th><th style="color:var(--teal);">Fwd CPO</th><th style="color:var(--coral);">Rev CPO</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -699,7 +699,7 @@ function renderRowsTable(tableId, rows, highlightBestRow){
   const tbody = document.querySelector('#'+tableId+' tbody');
   tbody.innerHTML = '';
   if (!rows || !rows.length){
-    const colCount = tableId === 'tbl-partner' ? 10 : 6;
+    const colCount = tableId === 'tbl-partner' ? 8 : 6;
     tbody.innerHTML = '<tr class="empty-row"><td colspan="'+colCount+'">No data for this filter selection</td></tr>';
     return;
   }
@@ -710,15 +710,12 @@ function renderRowsTable(tableId, rows, highlightBestRow){
       tr.style.background = 'var(--good-tint)';
       tr.style.borderLeft = '3px solid var(--good)';
     }
-    // r[0]=key, r[1]=totalOrders, r[2]=fwdCost, r[3]=revCost, r[4]=totalCost, r[5]=CPOL
-    // r[6]=fwdOrders, r[7]=fwdCPO, r[8]=revOrders, r[9]=revCPO  (partner table only)
+    // r[0]=key r[1]=orders r[2]=fwdCost r[3]=revCost r[4]=totalCost r[5]=CPOL r[6]=fwdCPO r[7]=revCPO
     let extra = '';
-    if (tableId === 'tbl-partner' && r.length >= 10) {
+    if (tableId === 'tbl-partner' && r.length >= 8) {
       extra =
-        '<td>'+fmtNum(r[6])+'</td>' +
-        '<td style="color:var(--teal); font-weight:700;">'+fmtRate(r[7])+'</td>' +
-        '<td>'+fmtNum(r[8])+'</td>' +
-        '<td style="color:var(--coral); font-weight:700;">'+(r[9]>0?fmtRate(r[9]):'—')+'</td>';
+        '<td style="color:var(--teal); font-weight:700;">'+(r[6]>0?fmtRate(r[6]):'—')+'</td>' +
+        '<td style="color:var(--coral); font-weight:700;">'+(r[7]>0?fmtRate(r[7]):'—')+'</td>';
     }
     tr.innerHTML =
       '<td>'+(isBest ? '🏆 ' : '')+r[0]+'</td>' +
