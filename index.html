@@ -422,7 +422,7 @@
     <div class="panel">
       <h2>Partner-wise <span style="color:var(--good); font-size:11px; font-weight:600; text-transform:none;">(sorted by lowest CPOL first)</span></h2>
       <table id="tbl-partner">
-        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th>CPOL</th><th style="color:var(--teal);">Fwd CPO</th><th style="color:var(--coral);">Rev CPO</th></tr></thead>
+        <thead><tr><th>Partner</th><th>Orders</th><th>Forward Cost</th><th>Reverse Cost</th><th>Total Cost</th><th id="th-cpol">CPOL</th><th style="color:var(--teal);">Fwd CPO</th><th style="color:var(--coral);">Rev CPO</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -1141,7 +1141,7 @@ let lastDashboardData = null;
 const allocCostCache = new Map();
 
 function allocDefaultRow(){
-  return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false, minPct: 2, maxPct: 48 };
+  return { historicalPct: 0, currentVolume: null, currentPct: null, cost: null, costSource: '', costOverridden: false, costLoading: false, minPct: 1, maxPct: 90 };
 }
 
 function computeHistoricalShare(){
@@ -1407,8 +1407,8 @@ function renderAllocTable(){
     tr.innerHTML =
       '<td><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:'+dotColor+'; margin-right:7px; vertical-align:middle;"></span>'+p+(infeasible ? ' <span title="Projected allocation exceeds Max %" style="color:var(--bad);">⚠</span>' : '')+'</td>' +
       '<td><div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><div style="flex:1; max-width:50px; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden;"><div style="width:'+Math.min(historicalPct,100)+'%; height:100%; background:'+dotColor+'; opacity:.55;"></div></div><span style="font-size:12px; color:var(--muted);">'+historicalPct.toFixed(2)+'%</span></div></td>' +
-      '<td><input class="alloc-input" data-partner="'+p+'" data-field="minPct" type="number" min="1" max="48" step="1" value="'+(row.minPct==null?2:row.minPct)+'" style="width:64px; color:var(--teal);"></td>' +
-      '<td><input class="alloc-input" data-partner="'+p+'" data-field="maxPct" type="number" min="1" max="48" step="1" value="'+(row.maxPct==null?48:row.maxPct)+'" style="width:64px; color:var(--coral);"></td>' +
+      '<td><input class="alloc-input" data-partner="'+p+'" data-field="minPct" type="number" min="1" max="90" step="1" value="'+(row.minPct==null?2:row.minPct)+'" style="width:64px; color:var(--teal);"></td>' +
+      '<td><input class="alloc-input" data-partner="'+p+'" data-field="maxPct" type="number" min="1" max="90" step="1" value="'+(row.maxPct==null?90:row.maxPct)+'" style="width:64px; color:var(--coral);"></td>' +
       '<td>' + (allocMode==='volume'
         ? '<input class="alloc-input" data-partner="'+p+'" data-field="currentVolume" type="number" min="0" step="1" placeholder="0" value="'+(row.currentVolume==null?'':Math.round(row.currentVolume))+'" style="width:100px;">'
         : fmtNum(row.currentVolume||0)) + '</td>' +
@@ -1461,12 +1461,12 @@ function renderAllocTable(){
         return;
       }
       if (field === 'minPct'){
-        allocData[p].minPct = Math.max(1, Math.min(48, Math.round(val)));
+        allocData[p].minPct = Math.max(1, Math.min(90, Math.round(val)));
         runAllocOptimizer();
         return;
       }
       if (field === 'maxPct'){
-        allocData[p].maxPct = Math.max(1, Math.min(48, Math.round(val)));
+        allocData[p].maxPct = Math.max(1, Math.min(90, Math.round(val)));
         runAllocOptimizer();
         return;
       }
@@ -1502,6 +1502,12 @@ function renderAllocTable(){
 
 function renderAllDashboardData(data){
   lastDashboardData = data;
+  // Dynamically update CPOL column header based on active shipment type
+  const shipType = document.getElementById('f-type').value;
+  const cpolLabel = shipType === 'Forward' ? 'Fwd CPO' : shipType === 'Reverse' ? 'Rev CPO' : 'CPOL';
+  const cpolTh = document.getElementById('th-cpol');
+  if (cpolTh) cpolTh.textContent = cpolLabel;
+
   renderKpis(data.kpis || {});
   renderRowsTable('tbl-partner', data.byPartner, true);
   renderRowsTable('tbl-zone', data.byZone);
