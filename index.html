@@ -13,7 +13,6 @@
     --text:#241f33; --muted:#7a7291; --accent:#5b6ee8; --accent-2:#9c6ff0; --coral:#ff7a8a;
     --good:#22a06b; --warn:#d68a1f; --bad:#e05a5a; --teal:#0fa8ae;
 
-    /* Semantic tints — used for banners/highlights instead of ad-hoc rgba() */
     --accent-tint:rgba(91,110,232,0.10); --accent-tint-strong:rgba(156,111,240,0.12);
     --good-tint:rgba(34,160,107,0.10); --good-tint-strong:rgba(34,160,107,0.16);
     --warn-tint:rgba(214,138,31,0.12); --warn-tint-strong:rgba(214,138,31,0.16);
@@ -21,7 +20,6 @@
     --teal-tint:rgba(15,168,174,0.10); --teal-tint-strong:rgba(15,168,174,0.16);
     --coral-tint:rgba(255,122,138,0.10); --coral-tint-strong:rgba(255,122,138,0.16);
 
-    /* Spacing scale — consistent multiples used across the layout */
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
     --space-5:24px; --space-6:32px; --space-7:48px;
 
@@ -273,26 +271,15 @@
     @media(prefers-reduced-motion:reduce){.pulse2,.spin2,.spinR2,.flicker2{animation:none}}
   </style>
 </defs>
-
-<!-- Transparent background -->
-
 <g class="pulse2">
-
-  <!-- diffuse core glow -->
   <circle cx="500" cy="500" r="330" fill="#a259ff" opacity=".11" filter="url(#bigGlow2)"/>
-
-  <!-- outer machined housing -->
   <circle cx="500" cy="500" r="318" fill="#150f1a" stroke="#726579" stroke-width="18"/>
   <circle cx="500" cy="500" r="298" fill="none" stroke="url(#metal2)" stroke-width="24"/>
   <circle cx="500" cy="500" r="274" fill="#0f0a14" stroke="#382c40" stroke-width="8"/>
-
-  <!-- outer engraved/technical ring -->
   <g class="spinR2" fill="none">
     <circle cx="500" cy="500" r="257" stroke="#c6b9ca" stroke-width="3" stroke-dasharray="2 15"/>
     <circle cx="500" cy="500" r="244" stroke="#635369" stroke-width="7" stroke-dasharray="44 10 6 10"/>
   </g>
-
-  <!-- radial mechanical blocks -->
   <g class="spin2">
     <g fill="url(#metal2)" stroke="#241829" stroke-width="5">
       <rect x="485" y="257" width="30" height="68" rx="7"/>
@@ -307,58 +294,39 @@
       </g>
     </g>
   </g>
-
-  <!-- bright segmented energy ring -->
   <circle cx="500" cy="500" r="211" fill="#180f22" stroke="#a08fa8" stroke-width="5"/>
   <g class="flicker2" filter="url(#glow2)">
-    <circle cx="500" cy="500" r="190" fill="none" stroke="#eeD8ff" stroke-width="25"
-            stroke-dasharray="30 11"/>
-    <circle cx="500" cy="500" r="190" fill="none" stroke="#9b3bff" stroke-width="11"
-            stroke-dasharray="30 11"/>
+    <circle cx="500" cy="500" r="190" fill="none" stroke="#eeD8ff" stroke-width="25" stroke-dasharray="30 11"/>
+    <circle cx="500" cy="500" r="190" fill="none" stroke="#9b3bff" stroke-width="11" stroke-dasharray="30 11"/>
   </g>
-
-  <!-- dark separators over luminous ring -->
   <g fill="#241827">
     <g transform="rotate(0 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
     <g transform="rotate(45 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
     <g transform="rotate(90 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
     <g transform="rotate(135 500 500)"><rect x="492" y="292" width="16" height="38" rx="4"/></g>
   </g>
-
-  <!-- inner black/metal aperture -->
   <circle cx="500" cy="500" r="151" fill="#0b060f" stroke="#786b84" stroke-width="7"/>
   <circle cx="500" cy="500" r="135" fill="#150d1b" stroke="#3d2c47" stroke-width="9"/>
-
-  <!-- radial coil / spoke structure -->
   <g class="spinR2" stroke="url(#gold2)" stroke-width="7" fill="none" opacity=".9">
     <circle cx="500" cy="500" r="116" stroke-dasharray="14 8"/>
     <path d="M500 382 L500 430 M618 500 L570 500 M500 618 L500 570 M382 500 L430 500"/>
     <path d="M416 416 L450 450 M584 416 L550 450 M584 584 L550 550 M416 584 L450 550"/>
   </g>
-
-  <!-- suspended luminous core -->
   <circle cx="500" cy="500" r="82" fill="#a437ed" opacity=".25" filter="url(#bigGlow2)"/>
   <circle cx="500" cy="500" r="72" fill="#0f0817" stroke="#b19fb8" stroke-width="6"/>
   <circle cx="500" cy="500" r="58" fill="url(#core2)" filter="url(#glow2)"/>
-
-  <!-- iconic bright central disc -->
   <circle cx="500" cy="500" r="29" fill="#fdf8ff"/>
   <circle cx="500" cy="500" r="14" fill="#ffffff"/>
-
-  <!-- precision bolts -->
   <g fill="#e0d6e4" stroke="#35263c" stroke-width="4">
     <circle cx="500" cy="347" r="8"/>
     <circle cx="653" cy="500" r="8"/>
     <circle cx="500" cy="653" r="8"/>
     <circle cx="347" cy="500" r="8"/>
   </g>
-
-  <!-- subtle purple energy arcs -->
   <g class="spin2" fill="none" stroke="#c073ff" stroke-width="4" opacity=".65">
     <path d="M328 420 A180 180 0 0 1 420 328"/>
     <path d="M580 672 A180 180 0 0 1 672 580"/>
   </g>
-
 </g>
 </svg>
         STARK
@@ -532,7 +500,7 @@
         </div>
 
         <div style="font-size:11px; color:var(--muted); margin-top:12px; line-height:1.6;">
-          Weight assumed at 250gm for all partners. Min %/Max % are set individually per partner in the table below (default 2%/48%, editable). Pricing Mode forces how Applicable Cost is calculated &mdash; <strong>Zone</strong> uses each partner's real per-zone rates, <strong>Slab</strong> uses only flat, zone-independent rates; a partner with no data of the selected kind shows ⚠ and ₹0.
+          Weight assumed at 500gm for all partners. Min %/Max % are set individually per partner in the table below (default 2%/48%, editable). Pricing Mode forces how Applicable Cost is calculated &mdash; <strong>Zone</strong> uses each partner's real per-zone rates, <strong>Slab</strong> uses only flat, zone-independent rates; a partner with no data of the selected kind shows ⚠ and ₹0.
         </div>
 
       </div>
@@ -575,9 +543,9 @@
 
 <script>
 /*************************************************************
- * CONFIG — point this at your Apps Script Web App /exec URL.
+ * CONFIG
  *************************************************************/
-const API_URL = 'https://script.google.com/macros/s/AKfycbwKk6M7CNMInkmf8iJ4oLAD6XHzBfIpJtmkAeLaBsohTHmWHlZX3Ok0TTKetczCVMUMZA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxu-oAlitDyMDhL-rwxQgDBU5xtwq0YxZ6MSeSuGrXzHQc-vsko_Ha7kaHHzB_tVBSnIg/exec';
 
 const CUR = '₹';
 const BAR_COLORS = ['#5b6ee8','#9c6ff0','#ff7a8a','#22a06b','#e8a53d','#0fa8ae','#e0729c','#8fae4f'];
@@ -698,6 +666,12 @@ function renderKpis(kpis){
 function renderRowsTable(tableId, rows, highlightBestRow){
   const tbody = document.querySelector('#'+tableId+' tbody');
   tbody.innerHTML = '';
+
+  // Filter out NULL zone rows from zone table (orders with missing zone data)
+  if (tableId === 'tbl-zone') {
+    rows = (rows || []).filter(r => r[0] !== 'NULL' && r[0] !== 'null' && r[0] !== '');
+  }
+
   if (!rows || !rows.length){
     const colCount = tableId === 'tbl-partner' ? 8 : 6;
     tbody.innerHTML = '<tr class="empty-row"><td colspan="'+colCount+'">No data for this filter selection</td></tr>';
@@ -710,7 +684,6 @@ function renderRowsTable(tableId, rows, highlightBestRow){
       tr.style.background = 'var(--good-tint)';
       tr.style.borderLeft = '3px solid var(--good)';
     }
-    // r[0]=key r[1]=orders r[2]=fwdCost r[3]=revCost r[4]=totalCost r[5]=CPOL r[6]=fwdCPO r[7]=revCPO
     let extra = '';
     if (tableId === 'tbl-partner' && r.length >= 8) {
       extra =
@@ -1326,13 +1299,6 @@ function runAllocOptimizer(){
     allocData[p].idealPct = totalVolume > 0 ? (vol/totalVolume)*100 : 0;
   });
 
-  // Current/existing blended CPOL — restricted to partners whose
-  // Applicable Cost has actually loaded (cost != null), same as the
-  // optimizer's optInput. Without this restriction, a partner still
-  // waiting on its cost would get treated as costing ₹0 here (via the
-  // `|| 0` fallback) while the optimizer correctly excludes it entirely
-  // — making Current look cheaper than it really is, and cheaper than
-  // even the Best Achievable CPOL, which defeats the whole comparison.
   const pricedPartners = partners.filter(p => allocData[p] && allocData[p].cost != null);
   const currentVolumePriced = pricedPartners.reduce((s,p) => s + (allocData[p].currentVolume||0), 0);
   const currentCost = pricedPartners.reduce((s,p) => s + (allocData[p].currentVolume||0) * allocData[p].cost, 0);
@@ -1502,7 +1468,6 @@ function renderAllocTable(){
 
 function renderAllDashboardData(data){
   lastDashboardData = data;
-  // Dynamically update CPOL column header based on active shipment type
   const shipType = document.getElementById('f-type').value;
   const cpolLabel = shipType === 'Forward' ? 'Fwd CPO' : shipType === 'Reverse' ? 'Rev CPO' : 'CPOL';
   const cpolTh = document.getElementById('th-cpol');
@@ -1641,7 +1606,7 @@ window.addEventListener('resize', () => {
     await loadFilters();
     await loadDashboard();
   } catch(err){
-    setStatus('Could not reach the Apps Script API. Check that it is deployed with "Anyone" access, and that API_URL in this file matches your /exec URL. (' + err.message + ')', 'error');
+    setStatus('Could not reach the Apps Script API. Check that it is deployed with "Anyone" access, and that the API_URL in this file matches your /exec URL. (' + err.message + ')', 'error');
   }
 })();
 </script>
